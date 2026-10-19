@@ -1,0 +1,18 @@
+{
+  "name": "personal-agent",
+  "version": "2.9.4",
+  "private": true,
+  "description": "个人信息管家 Agent（Web 应用 + Electron 桌面伴侣）",
+  "scripts": {
+    "dev:web": "npm --prefix web run dev",
+    "build:web": "npm --prefix web run build",
+    "typecheck:web": "npm --prefix web run typecheck",
+    "dev:desktop": "npm --prefix desktop run dev",
+    "build:desktop": "npm --prefix desktop run build",
+    "typecheck:desktop": "npm --prefix desktop run typecheck",
+    "test:qa": "node qa/run-tests.mjs"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

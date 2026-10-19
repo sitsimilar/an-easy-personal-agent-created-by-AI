@@ -1,0 +1,60 @@
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant W as Web前端
+    participant C as cloud(SDK)
+    participant DB as 云数据库
+    participant LLM as 云LLM
+    participant DM as 桌面主进程
+    participant VS as Visual Studio
+
+    Note over U,VS: 流程1 登录（手机号OTP）
+    U->>W: 输入手机号，获取验证码
+    W->>C: auth.sendOtp({phone})
+    C-->>W: verificationId
+    U->>W: 输入验证码，登录
+    W->>C: auth.verifyOtp({phone,verificationId,token})
+    C-->>W: session
+    W->>C: auth.getSession()
+    C-->>W: 已登录，进入主界面
+
+    Note over U,VS: 流程2 新增记录→分类/总结/关联
+    U->>W: 新增想法/资料/待办
+    W->>C: database.from('records').insert().select()
+    C->>DB: INSERT
+    DB-->>W: record
+    W->>C: llm.classify(stream) 收集
+    C->>LLM: 分类请求
+    LLM-->>W: {category,tags}
+    W->>C: database.update(category,tags)
+    W->>C: llm.summarize(stream)
+    LLM-->>W: summary
+    W->>C: database.update(summary)
+    W->>C: database.select(候选记录)
+    DB-->>W: candidates
+    W->>C: llm.relate(打分)
+    LLM-->>W: [{targetId,score}]
+    W->>C: database.from('record_links').insert()
+
+    Note over U,VS: 流程3 关键词检索
+    U->>W: 输入关键词
+    W->>C: database.from('records').select().or(ilike)
+    DB-->>W: 结果列表
+
+    Note over U,VS: 流程4 智能问答
+    U->>W: 输入问题
+    W->>C: database.select(相关记录topN)
+    DB-->>W: context
+    W->>C: llm.chat(stream)
+    LLM-->>W: 逐字回答
+    W->>C: database.insert(qa_sessions/messages)
+
+    Note over U,VS: 流程5 VS启动→分析→推送
+    VS->>DM: devenv.exe 启动（3s轮询命中）
+    DM->>DM: 解析.sln路径 + 增量读源码
+    DM->>W: IPC 推送 vs-started(changedFiles)
+    W->>C: llm.analyzeCode(stream)
+    LLM-->>W: issues JSON
+    W->>C: database.from('code_analyses').insert()
+    DB-->>W: analysis
+    W-->>U: 悬浮窗建议卡片(展开/稍后/忽略)

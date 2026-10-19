@@ -1,0 +1,26 @@
+appId: com.personalagent.desktop
+productName: 个人信息管家
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+asar: true
+# 运行时窗口/托盘图标（打包后经 process.resourcesPath 读取）
+extraResources:
+  - build/icon.png
+win:
+  target:
+    - nsis
+  icon: build/icon.ico
+  # 关闭 exe 签名与图标编辑（winCodeSign 含 macOS 符号链接，无管理员权限的 Windows 上解压失败）
+  signAndEditExecutable: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 个人信息管家
+  # 卸载时保留 userData（用户数据不被误删，由「一键删除」功能显式清理）
+  deleteAppDataOnUninstall: false

@@ -1,0 +1,28 @@
+{
+  "name": "personal-agent-desktop",
+  "version": "2.9.4",
+  "private": true,
+  "description": "个人信息管家桌面伴侣（Electron）",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "pack": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1",
+    "ps-list": "^8.1.1"
+  },
+  "devDependencies": {
+    "@esbuild/win32-x64": "^0.21.5",
+    "@rollup/rollup-win32-x64-msvc": "^4.64.5",
+    "@types/node": "^20.14.15",
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2"
+  }
+}

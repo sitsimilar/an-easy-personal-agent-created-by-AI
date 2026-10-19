@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html data-page-node-id="QYVWOMKecDcohuGXqFYCfX" lang="zh-CN">
+<head data-page-node-id="FMyvjbGr3Nt1rkz2sIHB6k">
+<script data-page-node-id="5cfztognQdCmnDMtOTgeeP" src="/page/page_comm/inject.js"></script>
+<meta data-page-node-id="dzPfH2TmJHi7dI10D9CuA1" charset="UTF-8">
+<meta data-page-node-id="h2XDav7klkd9DVU6kBtGLb" content="width=device-width, initial-scale=1" name="viewport">
+<title data-page-node-id="9ABciVsPAMpIhP0a9mHPAb" data-pnid-children="LAHBMzX3odfSU3CojRNIVa">个人信息管家 · 可点交互原型</title>
+<style data-page-node-id="68SUR9RebkPhsP2AA0oAGG" data-pnid-children="UipJFCiH98DeDrAOP2mDLd">
+/* ============================================================
+   个人信息管家 · 可点交互原型
+   Token 与画布「配色规范 / Color Tokens」及「交互态规范」完全一致
+   ============================================================ */
+:root{
+  /* 品牌 */
+  --brand:#5B54D9; --brand-hover:#6B64E3; --brand-press:#4A43C4;
+  --brand-soft:#EDEBFC; --brand-text:#4A43C4; --brand-line:#D8D4F7;
+  /* 文字 */
+  --ink:#18181B; --ink-2:#3F3F49; --ink-3:#4B4B55;
+  --muted:#64646E; --muted-2:#8A8A96; --faint:#9A9AA6; --faint-2:#A6A6B2;
+  /* 面与线 */
+  --card:#FFFFFF; --page:#F7F7F9; --rail:#F9F9FB;
+  --fill:#F4F4F7; --fill-2:#F7F7F9; --track:#EFEFF3; --press:#E4E4EA;
+  --line:#E7E7EC; --line-2:#EAEAEF; --line-hover:#DCDCE4;
+  /* 语义 */
+  --amber:#D97706; --amber-text:#B45309; --amber-bg:#FDF6EC; --amber-line:#F3E2C7;
+  --red:#C4342F; --red-bg:#FDF6F6;
+  --green:#15803D; --green-bg:#F0FDF4; --green-line:#BBF7D0;
+  /* 圆角 */
+  --r-6:6px; --r-8:8px; --r-9:9px; --r-10:10px; --r-12:12px; --r-13:13px; --r-14:14px; --r-22:22px;
+  /* 投影 */
+  --sh-1:0 1px 3px rgba(24,24,27,.05);
+  --sh-2:0 8px 22px -6px rgba(24,24,27,.13), 0 2px 6px -2px rgba(24,24,27,.06);
+  --sh-brand:0 4px 10px -3px rgba(91,84,217,.28);
+  --sh-brand-h:0 5px 12px -3px rgba(91,84,217,.34);
+  --sh-brand-p:0 2px 6px -2px rgba(74,67,196,.22);
+  --sh-win:0 24px 56px -12px rgba(24,24,27,.10), 0 6px 16px -4px rgba(24,24,27,.08);
+  --sh-float:0 28px 68px -16px rgba(24,24,27,.16), 0 8px 20px -6px rgba(24,24,27,.10);
+  --glow:0 0 0 4px rgba(91,84,217,.22);
+  --glow-soft:0 0 0 4px rgba(91,84,217,.20);
+  /* 动效 —— 与「G 状态与过渡规范」一致 */
+  --dur-hover:120ms; --dur-press:80ms; --ease:cubic-bezier(.2,.7,.4,1);
+  --font:"Noto Sans SC","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"Geist Mono","JetBrains Mono",SFMono-Regular,Consolas,"Liberation Mono",monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);
+  color:var(--ink);
+  background:#EFEFF2;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input{font-family:inherit;color:inherit;border:0;background:none;outline:none}
+::selection{background:var(--brand-soft);color:var(--brand-text)}
+
+/* ---------- 原型外壳（不属于产品 UI，仅用于演示） ---------- */
+.topbar{
+  flex:0 0 56px;display:flex;align-items:center;gap:16px;
+  padding:0 20px;background:#FFFFFF;border-bottom:1px solid var(--line);
+  position:relative;z-index:40;
+}
+.tb-brand{display:flex;align-items:center;gap:9px}
+.tb-logo{
+  width:24px;height:24px;border-radius:8px;flex:none;
+  background:linear-gradient(135deg,#5B54D9 0%,#9378F5 100%);
+  display:grid;place-items:center;color:#fff;
+}
+.tb-title{font-size:13px;font-weight:600;letter-spacing:.1px}
+.tb-title span{color:var(--faint);font-weight:400;margin-left:6px}
+.tb-mid{flex:1;display:flex;justify-content:center}
+.tb-right{display:flex;align-items:center;gap:10px}
+
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--track);border-radius:var(--r-10)}
+.seg-i{
+  height:28px;padding:0 14px;border-radius:8px;font-size:12.5px;font-weight:500;
+  color:var(--faint);transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.seg-i:hover{color:var(--ink-3)}
+.seg-i.is-on{
+  background:#fff;color:var(--ink);font-weight:600;
+  box-shadow:0 1px 3px rgba(24,24,27,.12);
+}
+.tb-ghost{
+  height:32px;padding:0 13px;border-radius:var(--r-9);font-size:12.5px;font-weight:500;
+  color:var(--ink-3);border:1px solid var(--line);
+  display:inline-flex;align-items:center;gap:6px;
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.tb-ghost:hover{background:var(--fill-2);border-color:var(--line-hover);color:var(--ink)}
+.tb-ghost:active{background:var(--track)}
+.tb-check{
+  display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+  cursor:pointer;user-select:none;padding:0 4px;
+}
+.tb-check input{appearance:none;width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-hover);position:relative;transition:all var(--dur-hover) var(--ease)}
+.tb-check input:checked{background:var(--brand);border-color:var(--brand)}
+.tb-check input:checked::after{content:"";position:absolute;left:4.6px;top:1.6px;width:4px;height:8px;border:2px solid #fff;border-top:0;border-left:0;transform:rotate(45deg)}
+
+/* ---------- 舞台 ---------- */
+#stage{position:relative;flex:1;overflow:hidden;
+  background:
+    radial-gradient(900px 520px at 14% -8%, rgba(91,84,217,.07), transparent 62%),
+    radial-gradient(760px 460px at 92% 108%, rgba(91,84,217,.05), transparent 60%),
+    #EFEFF2;
+}
+#slotMain{position:absolute;inset:0;display:grid;place-items:center}
+#slotMain.hide{display:none}
+.cap{
+  position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+  font-size:12px;color:var(--muted-2);background:rgba(255,255,255,.82);
+  border:1px solid var(--line);border-radius:99px;padding:7px 15px;white-space:nowrap;
+  backdrop-filter:blur(8px);pointer-events:none;max-width:calc(100% - 40px);overflow:hidden;text-overflow:ellipsis;
+}
+.cap b{color:var(--brand);font-weight:600}
+
+/* ---------- 窗口 ---------- */
+.win{
+  width:1200px;height:760px;flex:none;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-14);
+  box-shadow:var(--sh-win);overflow:hidden;
+  display:flex;flex-direction:column;
+  transform-origin:center center;
+  transition:width 220ms var(--ease),height 220ms var(--ease);
+}
+.win.is-compact{width:900px;height:620px}
+.win.is-closed{opacity:.22;filter:grayscale(1)}
+
+/* 标题栏 */
+.tbar{
+  flex:0 0 48px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 14px 0 16px;
+}
+.is-compact .tbar{flex-basis:44px;padding:0 12px 0 14px}
+.brand{display:flex;align-items:center;gap:9px}
+.is-compact .brand{gap:8px}
+.logo{
+  width:26px;height:26px;border-radius:8px;flex:none;
+  background:linear-gradient(135deg,#5B54D9 0%,#9378F5 100%);
+  display:grid;place-items:center;color:#fff;
+}
+.logo.sm{width:24px;height:24px;border-radius:8px}
+.is-compact .logo{width:22px;height:22px;border-radius:7px}
+.app-name{font-size:13.5px;font-weight:600;letter-spacing:.1px}
+.is-compact .app-name{font-size:12.5px}
+.wctl{display:flex;align-items:center;gap:14px}
+.is-compact .wctl{gap:12px}
+.wbtn{
+  width:22px;height:22px;display:grid;place-items:center;border-radius:6px;
+  color:var(--muted);transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.wbtn:hover{background:var(--fill);color:var(--ink)}
+.wbtn:active{background:var(--press)}
+.wbtn.danger:hover{background:var(--red-bg);color:var(--red)}
+
+/* 命令栏 */
+.cbar{
+  flex:0 0 64px;display:flex;align-items:center;gap:10px;
+  padding:0 16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.is-compact .cbar{flex-basis:56px;padding:0 14px;gap:8px}
+
+.scope{
+  width:92px;height:36px;flex:none;border-radius:var(--r-9);
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  background:var(--fill);border:1px solid #EBEBF0;font-size:12px;font-weight:500;color:var(--muted);
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.scope:hover{background:var(--track);border-color:var(--line-hover);color:var(--ink-2)}
+.is-compact .scope{display:none}
+.scope.is-open{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-text)}
+
+.search{
+  flex:1;height:36px;border-radius:var(--r-9);display:flex;align-items:center;gap:8px;
+  padding:0 12px;background:var(--fill);border:1px solid #EBEBF0;
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease);
+}
+.is-compact .search{height:34px}
+.search:hover{border-color:var(--line-hover)}
+.search.is-focus{background:#fff;border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand),var(--glow-soft)}
+.s-ic{color:var(--faint);display:flex;flex:none;transition:color var(--dur-hover) var(--ease)}
+.search.is-focus .s-ic{color:var(--brand)}
+.search input{flex:1;font-size:13px;color:var(--ink)}
+.is-compact .search input{font-size:12.5px}
+.search input::placeholder{color:var(--faint)}
+.s-clear{width:20px;height:20px;border-radius:50%;display:none;place-items:center;color:var(--faint);background:var(--line)}
+.s-clear:hover{background:var(--line-hover);color:var(--ink-3)}
+.search.has-q .s-clear{display:grid}
+
+/* 按钮 */
+.btn{
+  height:36px;padding:0 14px;border-radius:var(--r-9);flex:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  font-size:13px;font-weight:500;white-space:nowrap;
+  transition:background var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease),
+             border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease),opacity var(--dur-hover) var(--ease);
+}
+.btn:active{transition-duration:var(--dur-press)}
+.btn.primary{background:var(--brand);color:#fff;box-shadow:var(--sh-brand)}
+.btn.primary:hover{background:var(--brand-hover);box-shadow:var(--sh-brand-h)}
+.btn.primary:active{background:var(--brand-press);box-shadow:var(--sh-brand-p)}
+.btn.primary:disabled{opacity:.38;box-shadow:none;cursor:not-allowed;pointer-events:none}
+.btn.primary.is-loading{background:var(--brand-hover);box-shadow:var(--sh-brand);pointer-events:none}
+.btn.ghost{background:#fff;color:var(--ink-2);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--fill-2);border-color:var(--line-hover)}
+.btn.ghost:active{background:var(--track);color:var(--ink)}
+.btn.ghost:disabled{opacity:.42;cursor:not-allowed;pointer-events:none}
+.btn.soft{background:#F5F4FE;color:var(--brand-text);border:1px solid var(--brand-line);font-weight:600}
+.btn.soft:hover{background:#EDEBFC}
+.btn.soft:active{background:#E3E0FA}
+.btn.full{width:100%}
+.btn.sq{width:44px;padding:0;border-radius:var(--r-12)}
+.btn.sm{height:32px;padding:0 12px;font-size:12.5px;border-radius:var(--r-8)}
+.is-compact .btn.primary{padding:0;width:34px;height:34px}
+.is-compact .btn.primary .b-tx{display:none}
+
+.btn-ic{
+  width:36px;height:36px;flex:none;border-radius:var(--r-9);
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#fff;color:var(--muted);border:1px solid var(--line);
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease),opacity var(--dur-hover) var(--ease);
+}
+.btn-ic:hover{background:var(--fill-2);border-color:var(--line-hover);color:var(--ink)}
+.btn-ic:active{background:var(--track)}
+.btn-ic.tinted{background:var(--brand-soft);border-color:transparent;color:var(--brand-text)}
+.btn-ic.tinted:hover{background:#E3E0FA}
+.btn-ic.is-loading{pointer-events:none;color:var(--faint)}
+.is-compact .btn-ic{width:34px;height:34px}
+
+/* 图标按钮（无边框，用于列表项/浮窗头部） */
+.ib{
+  width:28px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--muted);
+  transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.ib:hover{background:var(--fill);color:var(--ink)}
+.ib:active{background:var(--press)}
+
+/* 聚焦环 —— 2px 品牌描边 + 外发光，零位移 */
+.fx{position:relative}
+.fx:focus{outline:none}
+.fx:focus-visible::after,body.ff .fx:focus::after{
+  content:"";position:absolute;inset:-2px;border-radius:inherit;
+  border:2px solid var(--brand);box-shadow:var(--glow);pointer-events:none;
+}
+
+/* 主体 */
+.wbody{flex:1;min-height:0;display:flex}
+
+/* 侧栏 */
+.sbar{
+  flex:0 0 232px;display:flex;flex-direction:column;gap:2px;
+  padding:10px;background:var(--rail);border-right:1px solid var(--line);
+  transition:flex-basis 220ms var(--ease),padding 220ms var(--ease);
+}
+.sg{font-size:11px;font-weight:600;color:var(--faint);padding:10px 10px 6px;letter-spacing:.3px}
+.sg+.sg{margin-top:10px}
+.nav{
+  height:34px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:var(--r-8);
+  background:transparent;
+  transition:background var(--dur-hover) var(--ease);
+}
+.nav:hover{background:var(--track)}
+.nav:active{background:var(--press)}
+.nav.is-on{background:var(--brand-soft)}
+.nv-ic{display:flex;flex:none;color:var(--muted-2);transition:color var(--dur-hover) var(--ease)}
+.nav:hover .nv-ic{color:var(--muted)}
+.nav.is-on .nv-ic{color:var(--brand)}
+.nv-tx{flex:1;font-size:13px;font-weight:500;color:var(--ink-3);text-align:left;transition:color var(--dur-hover) var(--ease)}
+.nav:hover .nv-tx{color:var(--ink-2)}
+.nav.is-on .nv-tx{color:var(--brand-text);font-weight:600}
+.nv-ct{font-size:11px;color:var(--faint-2);font-variant-numeric:tabular-nums;transition:color var(--dur-hover) var(--ease)}
+.nav.is-on .nv-ct{color:var(--brand);font-weight:500}
+.nav .hook{width:6px;height:6px;border-radius:3px;background:var(--brand);flex:none}
+.sbar-sp{flex:1}
+.sbar-div{height:1px;background:var(--line-2);margin:10px 2px}
+.nav.sub{height:36px;color:var(--ink-3)}
+.nav.sub .nv-tx{color:var(--ink-3)}
+
+/* 紧凑态侧栏 → 图标轨道 */
+.is-compact .sbar{flex-basis:60px;padding:14px 8px;gap:12px;align-items:center}
+.is-compact .sg{display:none}
+.is-compact .nav{width:36px;height:36px;justify-content:center;padding:0;border-radius:var(--r-10);gap:0}
+.is-compact .nv-tx,.is-compact .nv-ct{display:none}
+.is-compact .nav{position:relative}
+.is-compact .hook{position:absolute;top:6px;right:6px;width:5px;height:5px}
+.is-compact .sbar-div{width:28px;margin:6px auto}
+.is-compact .nav.sub{display:none}
+
+/* 主区 */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--page)}
+.phead{
+  flex:0 0 76px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;background:#fff;border-bottom:1px solid var(--line);
+}
+.is-compact .phead{flex-basis:64px;padding:0 22px}
+.ph-l{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ph-t{font-size:19px;font-weight:700;letter-spacing:-.2px}
+.is-compact .ph-t{font-size:17px}
+.ph-s{font-size:12px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.is-compact .ph-s{font-size:11.5px}
+
+.vtog{display:inline-flex;gap:2px;padding:3px;background:var(--track);border-radius:var(--r-9);flex:none;transition:opacity var(--dur-hover) var(--ease)}
+.is-compact .vtog{height:30px}
+.vt-i{
+  height:26px;padding:0 13px;border-radius:7px;font-size:12px;font-weight:500;color:var(--muted-2);
+  transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease);
+}
+.vt-i:hover{background:var(--press);color:var(--ink-2)}
+.vt-i.is-on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(24,24,27,.12)}
+.vtog.is-off{opacity:.45;pointer-events:none}
+
+.content{flex:1;min-height:0;overflow:auto;padding:28px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--line-hover) transparent}
+.is-compact .content{padding:22px}
+.content::-webkit-scrollbar{width:10px;height:10px}
+.content::-webkit-scrollbar-thumb{background:#DEDEE5;border:3px solid transparent;background-clip:content-box;border-radius:9px}
+.content::-webkit-scrollbar-thumb:hover{background:#CBCBD4;border:2px solid transparent;background-clip:content-box}
+.content.is-flush{padding:0;gap:0}
+
+/* 卡片 */
+.card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-12);
+  box-shadow:var(--sh-1);padding:16px;
+  transition:border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease),background var(--dur-hover) var(--ease);
+}
+.card.clickable{cursor:pointer}
+.card.clickable:hover{border-color:var(--line-hover);box-shadow:var(--sh-2)}
+.card.clickable:active{background:#FAFAFC;box-shadow:0 2px 6px -2px rgba(24,24,27,.06)}
+.cd-t{font-size:13.5px;font-weight:600;margin-bottom:6px}
+.cd-d{font-size:12px;color:var(--muted-2);line-height:1.6}
+.sec-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.sec-t{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.sec-m{font-size:11.5px;color:var(--faint)}
+
+/* 统计行 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.is-compact .stats{grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:var(--r-12);padding:14px 16px;box-shadow:var(--sh-1)}
+.st-l{font-size:11.5px;color:var(--faint);margin-bottom:7px}
+.st-v{font-size:22px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.st-v i{font-size:11.5px;font-weight:500;color:var(--muted-2);font-style:normal;margin-left:5px;letter-spacing:0}
+.st-v.brand{color:var(--brand)}
+.st-v.txt{font-size:15px;font-weight:600;letter-spacing:0}
+
+/* 列表 */
+.list{display:flex;flex-direction:column;gap:8px}
+.li{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-12);
+  box-shadow:var(--sh-1);cursor:pointer;
+  transition:border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease),background var(--dur-hover) var(--ease);
+}
+.li:hover{border-color:var(--line-hover);box-shadow:var(--sh-2)}
+.li:active{background:#FAFAFC;box-shadow:0 2px 6px -2px rgba(24,24,27,.06)}
+.li-ic{
+  width:32px;height:32px;flex:none;border-radius:var(--r-9);
+  display:grid;place-items:center;background:var(--fill);color:var(--muted);
+}
+.li-ic.brand{background:var(--brand-soft);color:var(--brand)}
+.li-ic.code{background:#EEF2FF;color:#4F5BD5}
+.li-ic.amber{background:var(--amber-bg);color:var(--amber-text)}
+.li-bd{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.li-tt{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-ds{font-size:11.5px;color:var(--muted-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li-mt{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--faint)}
+.li-mt .sep{width:3px;height:3px;border-radius:50%;background:#D4D4DC;flex:none}
+.li-ac{display:flex;gap:2px;flex:none;opacity:0;transition:opacity var(--dur-hover) var(--ease)}
+.li:hover .li-ac,.li:focus-within .li-ac{opacity:1}
+
+.chip{
+  height:20px;padding:0 8px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;
+  font-size:10.5px;font-weight:500;background:var(--fill);color:var(--muted);border:1px solid var(--line-2);
+}
+.chip.brand{background:var(--brand-soft);color:var(--brand-text);border-color:var(--brand-line)}
+.chip.amber{background:var(--amber-bg);color:var(--amber-text);border-color:var(--amber-line)}
+.chip.green{background:var(--green-bg);color:var(--green);border-color:var(--green-line)}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+/* 复选（待办） */
+.ck{
+  width:19px;height:19px;flex:none;border-radius:6px;border:1.6px solid var(--line-hover);
+  display:grid;place-items:center;color:transparent;background:#fff;
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.ck:hover{border-color:var(--brand)}
+.ck.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.li.done .li-tt{color:var(--faint);text-decoration:line-through;text-decoration-thickness:1px}
+.li.done .li-ic{opacity:.5}
+
+/* 骨架屏 */
+.sk{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-12);box-shadow:var(--sh-1);
+}
+.sk-ic{width:32px;height:32px;flex:none;border-radius:var(--r-9)}
+.sk-col{flex:1;display:flex;flex-direction:column;gap:9px}
+.sk-b1{height:11px;border-radius:5px;width:52%}
+.sk-b2{height:9px;border-radius:5px;width:78%}
+.shim{background:linear-gradient(90deg,#E4E4EA 0%,#F2F2F6 48%,#E4E4EA 100%);background-size:220% 100%;animation:shim 1.2s linear infinite}
+@keyframes shim{from{background-position:130% 0}to{background-position:-130% 0}}
+
+/* 空状态 */
+.empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  text-align:center;padding:20px;
+}
+.empty-ic{
+  width:72px;height:72px;border-radius:var(--r-22);display:grid;place-items:center;
+  background:#fff;border:1px solid var(--line);color:var(--brand);
+  box-shadow:0 8px 20px -4px rgba(91,84,217,.10);
+}
+.empty-t{font-size:16px;font-weight:600}
+.empty-d{font-size:13px;color:var(--muted);line-height:1.7;max-width:400px}
+.empty-d b{color:var(--ink-2);font-weight:600}
+.kbd{
+  display:inline-flex;align-items:center;height:22px;padding:0 7px;border-radius:var(--r-6);
+  background:#fff;border:1px solid var(--line);font-family:var(--mono);font-size:11px;font-weight:500;color:var(--muted);
+}
+.hint-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--faint)}
+.empty .sm{font-size:11.5px;color:var(--faint)}
+
+/* 输入（浮窗内 / 聊天） */
+.input{
+  flex:1;height:46px;border-radius:var(--r-12);background:var(--fill-2);border:1px solid var(--line);
+  padding:0 14px;font-size:13px;
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease);
+}
+.input::placeholder{color:var(--faint)}
+.input:hover{border-color:var(--line-hover)}
+.input:focus{background:#fff;border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand),var(--glow-soft)}
+
+/* 分段 / 标签 */
+.tabs{display:flex;gap:3px;padding:3px;background:var(--fill);border-radius:var(--r-10)}
+.tab{
+  flex:1;height:28px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--muted-2);
+  transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease);
+}
+.tab:hover{background:var(--press);color:var(--ink-2)}
+.tab.is-on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(24,24,27,.12)}
+.tags{display:flex;flex-wrap:wrap;gap:7px}
+.tag{
+  height:24px;padding:0 10px;border-radius:99px;display:inline-flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:500;background:var(--fill);color:var(--muted);border:1px solid var(--line-2);
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.tag:hover{background:var(--track);border-color:var(--line-hover);color:var(--ink-2)}
+.tag.is-on{background:var(--brand-soft);border-color:#D8D4F7;color:var(--brand-text)}
+
+/* 开关 */
+.row-item{
+  display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff;
+  border:1px solid var(--line);border-radius:var(--r-12);box-shadow:var(--sh-1);
+  transition:border-color var(--dur-hover) var(--ease);
+}
+.row-item+.row-item{margin-top:8px}
+.row-item .rw-bd{flex:1;min-width:0}
+.rw-t{font-size:13px;font-weight:600;margin-bottom:3px}
+.rw-d{font-size:11.5px;color:var(--muted-2)}
+.tgl{
+  appearance:none;width:38px;height:22px;border-radius:99px;background:var(--line-hover);
+  position:relative;flex:none;cursor:pointer;transition:background var(--dur-hover) var(--ease);
+}
+.tgl::after{
+  content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(24,24,27,.2);
+  transition:transform var(--dur-hover) var(--ease);
+}
+.tgl:checked{background:var(--brand)}
+.tgl:checked::after{transform:translateX(16px)}
+
+/* 工具卡栅格 */
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.is-compact .tgrid{grid-template-columns:repeat(3,1fr);gap:10px}
+.tool{
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:16px;text-align:left;
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-12);box-shadow:var(--sh-1);
+  transition:border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease),background var(--dur-hover) var(--ease);
+}
+.tool:hover{border-color:var(--line-hover);box-shadow:var(--sh-2)}
+.tool:active{background:#FAFAFC}
+.tool .tl-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand)}
+.tool .tl-t{font-size:12.5px;font-weight:600}
+.tool .tl-d{font-size:11px;color:var(--faint);line-height:1.55}
+
+/* 柱状图 */
+.bars{display:flex;align-items:flex-end;gap:10px;height:92px;padding-top:6px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
+.bar .b{width:100%;max-width:44px;border-radius:6px 6px 3px 3px;background:var(--brand-soft);transition:height 400ms var(--ease)}
+.bar.hi .b{background:var(--brand)}
+.bar .bl{font-size:10.5px;color:var(--faint)}
+
+/* 聊天 */
+.chat{flex:1;min-height:0;display:flex;flex-direction:column}
+.chat-body{flex:1;min-height:0;overflow:auto;padding:22px 28px;display:flex;flex-direction:column;gap:14px}
+.msg{max-width:72%;font-size:13px;line-height:1.7;border-radius:14px;padding:11px 14px;animation:fadeUp 260ms var(--ease) both}
+.msg.ai{background:#fff;border:1px solid var(--line);box-shadow:var(--sh-1);align-self:flex-start;border-top-left-radius:5px;color:var(--ink-2)}
+.msg.me{background:var(--brand);color:#fff;align-self:flex-end;border-top-right-radius:5px;box-shadow:var(--sh-brand)}
+.msg.typing{display:flex;gap:5px;align-items:center;padding:15px 16px}
+.msg.typing i{width:6px;height:6px;border-radius:50%;background:var(--faint-2);animation:blink 1.2s infinite}
+.msg.typing i:nth-child(2){animation-delay:.18s}
+.msg.typing i:nth-child(3){animation-delay:.36s}
+@keyframes blink{0%,60%,100%{opacity:.28;transform:translateY(0)}30%{opacity:1;transform:translateY(-2px)}}
+.chat-foot{
+  flex:none;display:flex;gap:10px;padding:14px 28px 18px;background:#fff;border-top:1px solid var(--line);
+}
+.is-compact .chat-foot{padding:12px 22px 16px}
+.chat-foot .input{height:44px}
+
+/* 浮窗 */
+#floatWrap{position:absolute;inset:0;transform-origin:center center;pointer-events:none;z-index:30}
+.float{
+  position:absolute;width:440px;height:560px;
+  background:#fff;border:1px solid var(--line);border-radius:var(--r-14);
+  box-shadow:var(--sh-float);overflow:hidden;display:flex;flex-direction:column;
+  opacity:0;transform:translateY(8px) scale(.985);pointer-events:none;
+  transition:opacity 180ms var(--ease),transform 180ms var(--ease);
+}
+.float.open{opacity:1;transform:none;pointer-events:auto}
+.float.center{left:calc(50% - 220px);top:calc(50% - 280px);right:auto;bottom:auto}
+.float.dock{right:36px;bottom:36px;left:auto;top:auto}
+.fhead{
+  flex:0 0 54px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 12px 0 16px;border-bottom:1px solid var(--line);
+}
+.fh-r{display:flex;align-items:center;gap:4px}
+.fbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.ftabs{display:flex;gap:3px;padding:3px;background:var(--fill);border-radius:var(--r-10);flex:none}
+.ftab{flex:1;height:28px;border-radius:8px;font-size:12.5px;font-weight:500;color:var(--muted-2);
+  transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease);}
+.ftab:hover{background:var(--press);color:var(--ink-2)}
+.ftab.is-on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(24,24,27,.12)}
+.frow{display:flex;gap:10px;flex:none}
+.fread{display:flex;flex-direction:column;gap:5px;flex:none}
+.fread .hint{font-size:10.5px;line-height:1.3;color:var(--faint);text-align:center}
+.ftools{display:flex;gap:10px;flex:none}
+.tcard{
+  flex:1;height:44px;border-radius:var(--r-12);display:flex;align-items:center;justify-content:center;gap:7px;
+  background:#fff;border:1px solid var(--line);font-size:12.5px;font-weight:500;color:var(--ink-3);
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease),box-shadow var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.tcard:hover{background:var(--fill-2);border-color:var(--line-hover);color:var(--ink);box-shadow:var(--sh-1)}
+.tcard:active{background:var(--track)}
+.flist{
+  flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:2px;
+  scrollbar-width:thin;scrollbar-color:var(--line-hover) transparent;
+}
+.flist::-webkit-scrollbar{width:8px}
+.flist::-webkit-scrollbar-thumb{background:#DEDEE5;border:2px solid transparent;background-clip:content-box;border-radius:9px}
+.fli{
+  display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:10px;
+  background:var(--fill-2);border:1px solid var(--line-2);cursor:pointer;
+  transition:background var(--dur-hover) var(--ease),border-color var(--dur-hover) var(--ease);
+}
+.fli:hover{background:#fff;border-color:var(--line-hover)}
+.fli .fl-bd{flex:1;min-width:0}
+.fli .fl-t{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fli .fl-m{font-size:10.5px;color:var(--faint);margin-top:2px}
+.fli .fl-ic{width:26px;height:26px;flex:none;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--brand);border:1px solid var(--line-2)}
+.fli.done .fl-t{color:var(--faint);text-decoration:line-through}
+.flink{
+  flex:none;height:34px;border-radius:var(--r-10);display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:12px;font-weight:500;color:var(--brand-text);
+  transition:background var(--dur-hover) var(--ease);
+}
+.flink:hover{background:#F5F4FE}
+.flink:active{background:var(--brand-soft)}
+.flist .mini-empty{font-size:11.5px;color:var(--faint);text-align:center;padding:18px 0}
+
+/* spinner */
+.spin{width:15px;height:15px;border-radius:50%;border:2.2px solid rgba(255,255,255,.34);border-top-color:#fff;animation:spin .9s linear infinite;flex:none}
+.spin.dark{border-color:rgba(63,63,73,.22);border-top-color:var(--muted)}
+.spin.brand{border-color:rgba(91,84,217,.22);border-top-color:var(--brand)}
+.spin.lg{width:20px;height:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 入场 */
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.fadeup{animation:fadeUp 280ms var(--ease) both}
+
+/* 下拉菜单 */
+.menu{
+  position:absolute;z-index:60;min-width:132px;padding:5px;background:#fff;
+  border:1px solid var(--line);border-radius:var(--r-10);
+  box-shadow:0 12px 28px -8px rgba(24,24,27,.16),0 2px 8px -3px rgba(24,24,27,.08);
+  opacity:0;transform:translateY(-4px);pointer-events:none;
+  transition:opacity 140ms var(--ease),transform 140ms var(--ease);
+}
+.menu.open{opacity:1;transform:none;pointer-events:auto}
+.menu button{
+  display:flex;align-items:center;gap:8px;width:100%;height:32px;padding:0 10px;border-radius:7px;
+  font-size:12.5px;color:var(--ink-3);text-align:left;
+  transition:background var(--dur-hover) var(--ease),color var(--dur-hover) var(--ease);
+}
+.menu button:hover{background:var(--fill);color:var(--ink)}
+.menu button.is-on{color:var(--brand-text);font-weight:600;background:var(--brand-soft)}
+.menu .mk{width:14px;display:grid;place-items:center;color:var(--brand);opacity:0}
+.menu button.is-on .mk{opacity:1}
+
+/* toast */
+.toasts{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;z-index:80;pointer-events:none}
+.toast{
+  display:flex;align-items:center;gap:9px;height:38px;padding:0 15px;border-radius:99px;
+  background:#1F1F26;color:#fff;font-size:12.5px;font-weight:500;white-space:nowrap;
+  box-shadow:0 12px 28px -8px rgba(24,24,27,.34);
+  animation:tin 240ms var(--ease) both;
+}
+.toast.out{animation:tout 200ms var(--ease) both}
+.toast .ti{display:flex;color:#A9A4F5}
+@keyframes tin{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tout{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.97)}}
+
+/* 关闭态恢复条 */
+.restore{
+  position:absolute;left:50%;bottom:64px;transform:translateX(-50%);
+  display:none;gap:10px;z-index:70;
+}
+.restore.show{display:flex}
+
+@media (max-width:820px){
+  .tb-title span{display:none}
+  .tb-check{display:none}
+}
+</style>
+</head>
+<body data-page-node-id="YsgtDIijF8U7LB3SL430KU">
+
+<!--pnid:nNAAipxU6wuUg3qb2EhzHM--><!-- ===== 原型外壳 ===== -->
+<header data-page-node-id="Gkhg6RByp68d2OfC2r9Fg0" class="topbar">
+  <div data-page-node-id="9lwsLs0XAtYMVvgz7Q21z0" class="tb-brand">
+    <div data-page-node-id="gUhFOTrlLtU8BzH9CpCGC2" class="tb-logo">
+      <svg data-page-node-id="oL0fPerNUr3FlMCvnyCO2o" fill="none" height="14" stroke="currentColor" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" width="14"><path data-page-node-id="HBoGdGoGLXOA5OP3EsnrpF" d="M5 4.2h8.4l5.6 5.6v10a1.2 1.2 0 0 1-1.2 1.2H5a1.2 1.2 0 0 1-1.2-1.2V5.4A1.2 1.2 0 0 1 5 4.2Z"/><path data-page-node-id="BEOGX6zmWpRkNxjhgYONMb" d="M13.2 4.4v5.4h5.4"/></svg>
+    </div>
+    <div data-page-node-id="9t8whFJe7TwMnowJxTWbrq" class="tb-title"><!--pnid:lWEVnPofSN0kH9MStyDYWS-->个人信息管家<span data-page-node-id="m0oPd7S9EMyaO7Yf9f6yaA"><!--pnid:3NAFtsnNbXN87dBXYuQuOI-->可点交互原型</span></div>
+  </div>
+  <div data-page-node-id="PjCxEOpSYF82GD0EibJC5b" class="tb-mid">
+    <div data-page-node-id="YWcjmrvP0e1qi247z4l2Yg" class="seg" id="viewSeg">
+      <button data-page-node-id="AY6avVaEevEnRtor5TWdv7" class="seg-i is-on" data-view="main"><!--pnid:wdrNlHYvLVunRhaEEg3smk-->主界面</button>
+      <button data-page-node-id="fDBbXCVB7vtcj9xcv5nYbD" class="seg-i" data-view="compact"><!--pnid:ZBUx333cx1rtTH1inF1hbo-->紧凑适配</button>
+      <button data-page-node-id="tJRmU9JyADBfuqQ6u9elDL" class="seg-i" data-view="float"><!--pnid:0jUfCjOrFGjqdWqHefly0n-->悬浮窗</button>
+    </div>
+  </div>
+  <div data-page-node-id="iNXgYotPtvqzDeenzCklQa" class="tb-right">
+    <label data-page-node-id="PmJLMT8QubCJYdfL3Ubc5n" class="tb-check"><input data-page-node-id="ULg4goHy0Gx9xJOhjxVRzZ" id="ffToggle" type="checkbox"><!--pnid:0HwRaPDlHAuAoa94MgdXwG-->显示聚焦环</label>
+    <button data-page-node-id="3cXFdZaOWs1M4A7rwtSvcY" class="tb-ghost fx" id="playBtn">
+      <svg data-page-node-id="uyc59YFnaTjrrV4gGPXdyV" fill="currentColor" height="13" viewBox="0 0 24 24" width="13"><path data-page-node-id="PHWTxINMNu2Nsq5u9tU7Vo" d="M8 5.2v13.6L19 12 8 5.2Z"/></svg><!--pnid:SrZIY1FVKVEsHD1wOghRxW-->
+      播放完整流程
+    </button>
+  </div>
+</header>
+
+<main data-page-node-id="qiIi7ymeFDK2qKCC10bMTR" id="stage">
+  <div data-page-node-id="fhJs0tmqcVewYbKBq3mOSr" id="slotMain">
+    <!--pnid:oRnXnAJDeGRYRemZM0sHzA--><!-- ===== 主界面 ===== -->
+    <section data-page-node-id="hXCHNtHFdHhcARb7YMAPTQ" class="win" id="winMain">
+      <div data-page-node-id="JXsz3JGB1CWczS195MvFoD" class="tbar">
+        <div data-page-node-id="qNThiSAJIfqJKSMVhquvQ6" class="brand">
+          <div data-page-node-id="67Z2oaERSEWNiuvEACjxcc" class="logo">
+            <svg data-page-node-id="M7s74Av2bh2uCvl816rGZB" fill="none" height="16" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="16"><path data-page-node-id="JDEiN3YskTb4jk6BjFCkdL" d="M5 4.2h8.4l5.6 5.6v10a1.2 1.2 0 0 1-1.2 1.2H5a1.2 1.2 0 0 1-1.2-1.2V5.4A1.2 1.2 0 0 1 5 4.2Z"/><path data-page-node-id="Ib7uLs4D4YXB7BGYC9oKQz" d="M13.2 4.4v5.4h5.4"/></svg>
+          </div>
+          <div data-page-node-id="f3AvPUFEnUbOqqMDQkkRTa" class="app-name"><!--pnid:oek6Ly1CacPrMxXGv5YSss-->个人信息管家</div>
+        </div>
+        <div data-page-node-id="jrGXC4tOo6kNekGsPsyRuT" class="wctl">
+          <button data-page-node-id="g4rKt04rPipjXqxRmmFkMN" class="wbtn fx" data-act="win-min" title="最小化">
+            <svg data-page-node-id="hTDybAibI829QjCckGGJnd" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16"><path data-page-node-id="O2Iy37z4NZGNqea0seUeZ6" d="M5.6 12h12.8"/></svg>
+          </button>
+          <button data-page-node-id="3QPz19X1cD3JTJjITzYExE" class="wbtn fx" data-act="win-max" title="最大化">
+            <svg data-page-node-id="jeCqMdKBCGSFt8R5WQ2XlN" fill="none" height="16" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" width="16"><rect data-page-node-id="PAGklcDRLC8DOE7E2y6WYO" height="12.8" rx="2.2" width="12.8" x="5.6" y="5.6"/></svg>
+          </button>
+          <button data-page-node-id="phLgfS0IGHs8MgKgz0qJiG" class="wbtn danger fx" data-act="win-close" title="关闭">
+            <svg data-page-node-id="UwdRxxrUcrtJoZLrjmv2PG" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16"><path data-page-node-id="moNK9WcyOzblCS2QkxDDz4" d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div data-page-node-id="e11F9pyDckZ7SyvMCmGQ5E" class="cbar">
+        <button data-page-node-id="GO9YdbnYtEtIax6edLDu4A" class="scope fx" id="scopeBtn">
+          <span data-page-node-id="RnOYPNYxf4zqXAgtLeHJIf" id="scopeLabel"><!--pnid:v0jhe9iE4oyATAnd7kQ6d5-->搜索</span>
+          <svg data-page-node-id="WZQ52dkPmLNbJq5CzyTp4F" fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14"><path data-page-node-id="LjRM2uUfI3Wma5GaNshIo8" d="m6.5 9.5 5.5 5.5 5.5-5.5"/></svg>
+        </button>
+        <div data-page-node-id="bWTdXig4PMaduaabRmUL6S" class="search" id="searchWrap">
+          <span data-page-node-id="5EL5zGIMd0xQs4tIIeAUn8" class="s-ic" style="color:currentColor">
+            <svg data-page-node-id="gKtVjnKrLYp5iJqgIzd6OL" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="16"><circle data-page-node-id="sKhPfkYHGwEZEULq1peyWs" cx="11" cy="11" r="7"/><path data-page-node-id="ehPnFyRrSV9AnOgn8B2vHH" d="M16.2 16.2 20.5 20.5"/></svg>
+          </span>
+          <input data-page-node-id="QJRaLDbdmJDncO7FXULqnE" autocomplete="off" id="searchInput" placeholder="输入关键词检索想法、资料、待办">
+          <button data-page-node-id="uUuc10KeCSQg30QLWhUdDj" class="s-clear fx" id="searchClear" title="清除">
+            <svg data-page-node-id="93ornAEoyuv3BiIswuJxm2" fill="none" height="12" stroke="currentColor" stroke-linecap="round" stroke-width="2.4" viewBox="0 0 24 24" width="12"><path data-page-node-id="Uqr2DO1rn0xLMhMYbTXkhW" d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg>
+          </button>
+        </div>
+        <button data-page-node-id="RkQVC2yY3cdmEFzME9He40" class="btn primary fx" id="captureBtn">
+          <span data-page-node-id="ky2cuVxiVM2lD7sP0VGp0p" class="b-ic" style="display:flex">
+            <svg data-page-node-id="FFQt3pTXD2ELHiL2tADXQm" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="20"><path data-page-node-id="Ok7WzbfN3cHowpY5mpiotN" d="M12 5.2v13.6M5.2 12h13.6"/></svg>
+          </span>
+          <span data-page-node-id="FInBbJ8mqWvDvLUYyiYJgY" class="b-tx"><!--pnid:Or4XkIntSWpqYCAq9Xfjpe-->快速记录</span>
+        </button>
+        <button data-page-node-id="Sgt9rMAq0H8qOqwJxYQDKb" class="btn-ic tinted fx" id="aiBtn" title="AI 问答">
+          <svg data-page-node-id="HaejKsqsu4iu4iVsJa2xmU" fill="none" height="20" stroke="currentColor" stroke-linejoin="round" stroke-width="1.6" viewBox="0 0 24 24" width="20"><path data-page-node-id="XLqxdl490V6SxPGQp3q6Uh" d="M12 3.4 13.7 9.1a2 2 0 0 0 1.3 1.3L20.6 12l-5.6 1.6a2 2 0 0 0-1.3 1.3L12 20.6l-1.7-5.7a2 2 0 0 0-1.3-1.3L3.4 12 9 10.4a2 2 0 0 0 1.3-1.3Z"/></svg>
+        </button>
+        <button data-page-node-id="lYM6No6JdbeATTLd4vHiPQ" class="btn-ic fx" id="exportBtn" title="导出">
+          <svg data-page-node-id="SZ46eO59quhEVerfgdX8cN" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="20"><path data-page-node-id="d1jyHPO0PtbzXPcS2wwPIs" d="M12 15.4V4M12 4 8.3 7.7M12 4l3.7 3.7"/><path data-page-node-id="bbPYfAGUIYhYSr1OWenpCR" d="M4.6 14.6v3a2.4 2.4 0 0 0 2.4 2.4h10a2.4 2.4 0 0 0 2.4-2.4v-3"/></svg>
+        </button>
+      </div>
+
+      <div data-page-node-id="zBEhgxYR7kM4g9ZUuqABbl" class="wbody">
+        <aside data-page-node-id="nNo9KFA04UIjN0zyj6wOfC" class="sbar" id="sidebar"></aside>
+        <section data-page-node-id="aMxsUcjnPvWdL0rDh43BsE" class="main">
+          <div data-page-node-id="8z5Ts0xhJYPDCkrcNP7Dee" class="phead">
+            <div data-page-node-id="wMoqS2nsbCHXuP2pP60obf" class="ph-l">
+              <div data-page-node-id="3muVUTl2FGiEhkMNgD09mZ" class="ph-t" id="pageTitle"><!--pnid:8hGix1ojm9Y42WwKktZV1B-->全部信息</div>
+              <div data-page-node-id="JGjYBJqvTTZ66ayMPWQEVm" class="ph-s" id="pageSub"></div>
+            </div>
+            <div data-page-node-id="NAmx06Bz9Z4EDptMOfDIkI" class="vtog" id="langTog">
+              <button data-page-node-id="fn8rfF1C9q10G0dIwf31P3" class="vt-i is-on" data-lang="tech"><!--pnid:L7aTnaeazfa1QCekEu2gM9-->专业版</button>
+              <button data-page-node-id="FIIlzk93wYs33UsMhxN48R" class="vt-i" data-lang="plain"><!--pnid:QBgZ1lgqOUWLwJAA6ws0QX-->大白话版</button>
+            </div>
+          </div>
+          <div data-page-node-id="Bx5sXErySVhH775SNhwlfK" class="content" id="content"></div>
+        </section>
+      </div>
+    </section>
+  </div>
+
+  <!--pnid:JhfxgchfiCnyal1pyDRdGZ--><!-- ===== 悬浮窗 ===== -->
+  <div data-page-node-id="RSdbY19OwAhkflaaNPo7vt" id="floatWrap">
+  <div data-page-node-id="Vlh3wAmBnjpVCWLtn4LXCe" class="float dock" id="floatWin">
+    <div data-page-node-id="93L8QPMzA4H1DlkMRxWw6M" class="fhead">
+      <div data-page-node-id="rPuqKCEjccjnpNTnxhJKJd" class="brand">
+        <div data-page-node-id="sSYowq0rPTfd8H7Ed1aMw6" class="logo sm">
+          <svg data-page-node-id="wh2ewhALcn4fvwot4UAiWZ" fill="none" height="14" stroke="currentColor" stroke-linejoin="round" stroke-width="1.9" viewBox="0 0 24 24" width="14"><path data-page-node-id="RNXeURNfB7a1uzl4Af4vuu" d="M5 4.2h8.4l5.6 5.6v10a1.2 1.2 0 0 1-1.2 1.2H5a1.2 1.2 0 0 1-1.2-1.2V5.4A1.2 1.2 0 0 1 5 4.2Z"/><path data-page-node-id="fMyp9eN2rsGi6ISaOICPgP" d="M13.2 4.4v5.4h5.4"/></svg>
+        </div>
+        <div data-page-node-id="7v0Oz7NvNtiuoPK1elG7xx" class="app-name"><!--pnid:W2av2QlvXLdceipU6V9bgQ-->个人信息管家</div>
+      </div>
+      <div data-page-node-id="3ByvZVDhzG6kJQPGa8Ms2F" class="fh-r">
+        <button data-page-node-id="34wTCEgyMFngN6DyNoInzo" class="chip amber fx" id="vsChip" style="height:24px; cursor:pointer">
+          <span data-page-node-id="S4NzUdLRcjTF5oYwiP0olx" class="dot"></span><span data-page-node-id="2Aw7NjJbp7UjSNVQ1uQL4W" id="vsText"><!--pnid:LqRpsheLTulLM2w9bFYgiX-->未检测到 VS</span>
+        </button>
+        <button data-page-node-id="HAzVS2FMNbw6yhIIiA0bxt" class="ib fx" id="floatExpand" title="展开主界面">
+          <svg data-page-node-id="GqivOnyOzpO6dl7M2L514b" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24" width="17"><path data-page-node-id="Tb52byNpE9dw8sLIwY77Yu" d="M4.4 9.4V4.6h4.8"/><path data-page-node-id="Njho2IXrRwfDiMhNt9Gs44" d="M19.6 14.6v4.8h-4.8"/><path data-page-node-id="fLG0xVZNqTXfbcff80nXV3" d="M4.6 4.6 10.6 10.6"/><path data-page-node-id="sxMwyJOEc757rbMaUK6etU" d="M19.4 19.4 13.4 13.4"/></svg>
+        </button>
+        <button data-page-node-id="QuXesovbliPeR9gwH6lyY5" class="ib fx" id="floatClose" title="关闭">
+          <svg data-page-node-id="ReMpwGKvVgmZmaU2anwGhz" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewBox="0 0 24 24" width="17"><path data-page-node-id="KPAPcRH8M4ClnBLrFwJtvA" d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div data-page-node-id="LEYFIb9tExfw2cqIPlFhiv" class="fbody">
+      <div data-page-node-id="Vc0ymg9uQNTI5K75Q6csMF" class="ftabs" id="floatTabs">
+        <button data-page-node-id="ux7EtbqoP4CbUd3OsZeQ34" class="ftab is-on" data-ftab="idea"><!--pnid:Xi8MTRxV7gabJolh4gTs8e-->想法</button>
+        <button data-page-node-id="mkrb2n17uEA7AWFcSiEsmf" class="ftab" data-ftab="todo"><!--pnid:n5GfvQJyvABubBXQ005LrD-->待办</button>
+      </div>
+
+      <div data-page-node-id="S2gyFzmo9Kk4m5C5KA0sxo" class="frow">
+        <input data-page-node-id="iDIb68VGmewKZVRNa9qPvc" class="input" id="floatInput" placeholder="记一个想法…" style="height:44px; border-radius:var(--r-12); flex:1; padding:0 14px; background:var(--fill-2); border:1px solid var(--line)">
+        <button data-page-node-id="OoAx7DyeMJe0lEs09AzSb6" class="btn primary sq fx" id="floatAdd" style="height:44px; width:44px">
+          <svg data-page-node-id="IhaFcxes79kKoYZFVPGvQw" fill="none" height="20" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24" width="20"><path data-page-node-id="Yec4G24WTaoHaaNEydhKmW" d="M12 5.2v13.6M5.2 12h13.6"/></svg>
+        </button>
+      </div>
+
+      <div data-page-node-id="2HMDUyWbiMDMgg9u4U8BaR" class="fread">
+        <button data-page-node-id="YtQdC76W23QRDvCXMMWyDk" class="btn soft full fx" id="floatRead" style="height:40px">
+          <span data-page-node-id="njCjnlAse1vYeYFeyKa8fv" class="rd-ic" style="display:flex">
+            <svg data-page-node-id="hlFSLdo15stA4e0cCjnwo5" fill="none" height="17" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="17"><rect data-page-node-id="bfrnkHzt83msR0GmcvdFdj" height="11" rx="2.6" width="11" x="8.6" y="8.6"/><path data-page-node-id="MeMRjmbawzCieJTcLNO0tB" d="M15.4 5.6a2 2 0 0 0-2-2H5.6a2 2 0 0 0-2 2v7.8a2 2 0 0 0 2 2"/></svg>
+          </span><!--pnid:7ajcha7PpvaGFoYBbglzeu-->
+          读取选区
+        </button>
+        <div data-page-node-id="b2yGOfJ0yPp7jUzDwsFkx8" class="hint"><!--pnid:znAKtKIynxOrTDfdcP7Wcb-->复制文本后按 <span data-page-node-id="lEPIvTkgH9DDKKS9PNKcfW" style="font-family:var(--mono)"><!--pnid:23ECPDfsrZ9ZqhGydCQsG9-->Ctrl + Shift + A</span><!--pnid:QW1aB0lu1bT2ZdOfXlejNl-->，或点「读取选区」</div>
+      </div>
+
+      <div data-page-node-id="08bPBdQLfkIlhZOn7YkKPd" class="flist" id="floatList"></div>
+
+      <div data-page-node-id="eFkV0hg7KZuyMEcWnRa7YQ" class="ftools">
+        <button data-page-node-id="cIYyuXCxoJmUImJSN0v0zc" class="tcard fx" data-tool="代码生成">
+          <svg data-page-node-id="RIAS6q0SgYQcFPv6c8mL7f" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24" width="17"><rect data-page-node-id="QPofZ8V5dUeVKEpXNUyObd" height="14.8" rx="2.6" width="17.6" x="3.2" y="4.6"/><path data-page-node-id="3VXylSLxyhkvTKBxVZYbfB" d="m7.6 10 2.4 2.4-2.4 2.4"/><path data-page-node-id="H0RHv6mATy3iKZmy82290Q" d="M12.8 15h3.6"/></svg><!--pnid:RDDQ5SMK87bDdPq6bUm8WE-->
+          代码生成
+        </button>
+        <button data-page-node-id="Eb9yC1OjekOtp0uANhhTGs" class="tcard fx" data-tool="速查库">
+          <svg data-page-node-id="Vl2dObNHJ3UXmNRC5u9M2A" fill="none" height="17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" viewBox="0 0 24 24" width="17"><path data-page-node-id="9vDf1Z2MxkXIdN7jLTy4Tj" d="M4.8 4.6h8.4a2.6 2.6 0 0 1 2.6 2.6v12.2H7.4a2.6 2.6 0 0 1-2.6-2.6V4.6Z"/><path data-page-node-id="mesMbUhXfKJBS55X4z1Vo3" d="M15.8 7.3h2.2a1.2 1.2 0 0 1 1.2 1.2v9.7a1.2 1.2 0 0 1-1.2 1.2h-2.2"/></svg><!--pnid:HgzlAmQQ4tooAwxgSzvh5C-->
+          速查库
+        </button>
+      </div>
+
+      <div data-page-node-id="FYHLotsJaq4Lte7JQei4vJ" class="frow">
+        <input data-page-node-id="PEZ8BP1ehJSmifcuGzNaY7" class="input" id="askInput" placeholder="向个人知识库提问…" style="height:44px; border-radius:var(--r-12); flex:1; padding:0 14px; background:var(--fill-2); border:1px solid var(--line)">
+        <button data-page-node-id="9z6YsscJJKaImhE0XbAhde" class="btn primary sq fx" id="askBtn" style="height:44px; width:44px; font-size:13px; font-weight:600"><!--pnid:8j803mreJmQDYOba0iuM59-->问</button>
+      </div>
+
+      <button data-page-node-id="l5yEtmf5MmSfB8nAojOkLK" class="flink fx" id="floatOpenMain">
+        <svg data-page-node-id="ueZROPC3l4aiQLqQLrj8EE" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24" width="16"><path data-page-node-id="awhimHcs4ermecyy1HAbLa" d="M13.8 4.6h5.6v5.6"/><path data-page-node-id="oqbXi3wIbIur46Kh5g8l8m" d="M19.4 4.6 11.8 12.2"/><path data-page-node-id="xRmDnbk4UglFDqxvJmzzLg" d="M18.6 14.6v3.2a2.2 2.2 0 0 1-2.2 2.2H6a2.2 2.2 0 0 1-2.2-2.2V7.4A2.2 2.2 0 0 1 6 5.2h3.2"/></svg><!--pnid:WRzuY2r9TnUe5itIQdUlfK-->
+        打开主界面
+      </button>
+    </div>
+  </div>
+  </div>
+
+  <div data-page-node-id="nzqcn2U8hhaL5i2dioPn45" class="menu" id="scopeMenu"></div>
+
+  <div data-page-node-id="uPSJsz6W5byZYz89Hxg22q" class="cap" id="capText"></div>
+  <div data-page-node-id="6GvmRhkNQ2T16Lln8UBfLJ" class="restore" id="restoreWrap">
+    <button data-page-node-id="AZ5YDZpvYU0H6Wll7lUSyz" class="btn ghost fx" id="restoreBtn"><!--pnid:KUhaiEvSV3wfJCNoy0wID4-->主界面已关闭 · 点击恢复</button>
+    <button data-page-node-id="9DcWlGnyRa7va0rbWYI1YK" class="btn ghost fx" id="restoreFloat"><!--pnid:U12uvwneS1hYQBa6xmzuc6-->悬浮窗已关闭 · 点击恢复</button>
+  </div>
+  <div data-page-node-id="gC3t4SAnskGNdgAMzBhTiV" class="toasts" id="toasts"></div>
+</main>
+
+<script data-page-node-id="WrCUSpSdAcXHWxgLyUITUp" data-pnid-children="gYfklps8FCcpFUWYn2yYdj">
+/* ============================================================
+   0. 工具
+   ============================================================ */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const wait = ms => new Promise(res => setTimeout(res, ms));
+
+const SVG = (p, s = 20, w = 1.7) =>
+  `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+const I = {
+  layers : `<path d="M12 3.4 3.6 7.5 12 11.6l8.4-4.1L12 3.4Z"/><path d="m3.6 12.1 8.4 4.1 8.4-4.1"/><path d="m3.6 16.7 8.4 4.1 8.4-4.1"/>`,
+  bulb   : `<path d="M12 3.4a5.9 5.9 0 0 0-3.4 10.7c.5.36.8.92.8 1.53v.77h5.2v-.77c0-.6.3-1.17.8-1.53A5.9 5.9 0 0 0 12 3.4Z"/><path d="M9.8 19.2h4.4"/>`,
+  folder : `<path d="M3.4 7.3a2.1 2.1 0 0 1 2.1-2.1h3.3c.56 0 1.06.22 1.44.6l1.06 1.06h7.2a2.1 2.1 0 0 1 2.1 2.1v8.7a2.1 2.1 0 0 1-2.1 2.1H5.5a2.1 2.1 0 0 1-2.1-2.1V7.3Z"/>`,
+  check  : `<circle cx="12" cy="12" r="8.4"/><path d="m8.3 12.2 2.6 2.6 4.9-5.5"/>`,
+  clock  : `<circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3.2 1.9"/>`,
+  code   : `<path d="m9.3 7.8-4.6 4.2 4.6 4.2"/><path d="m14.7 7.8 4.6 4.2-4.6 4.2"/>`,
+  chat   : `<path d="M20.4 12.2a7.6 7.6 0 0 1-10.9 6.8l-5 1.6 1.6-4.9A7.6 7.6 0 1 1 20.4 12.2Z"/>`,
+  grid   : `<rect x="3.6" y="3.6" width="7" height="7" rx="2.2"/><rect x="13.4" y="3.6" width="7" height="7" rx="2.2"/><rect x="3.6" y="13.4" width="7" height="7" rx="2.2"/><rect x="13.4" y="13.4" width="7" height="7" rx="2.2"/>`,
+  trash  : `<path d="M4.6 7h14.8"/><path d="M9.6 7V5.4a1.4 1.4 0 0 1 1.4-1.4h2a1.4 1.4 0 0 1 1.4 1.4V7"/><path d="M6.8 7 7.8 19a1.6 1.6 0 0 0 1.6 1.5h5.2A1.6 1.6 0 0 0 16.2 19L17.2 7"/>`,
+  gear   : `<circle cx="12" cy="12" r="2.9"/><path d="M19.2 14.6a1.5 1.5 0 0 0 .3 1.65l.06.05a1.8 1.8 0 1 1-2.55 2.55l-.05-.06a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37v.14a1.8 1.8 0 1 1-3.6 0v-.07a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.05.06A1.8 1.8 0 1 1 5.6 16.3l.06-.05a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H4.4a1.8 1.8 0 1 1 0-3.6h.07a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65L5.5 7.4A1.8 1.8 0 1 1 8.05 4.85l.05.06a1.5 1.5 0 0 0 1.65.3h.07a1.5 1.5 0 0 0 .9-1.37V3.7a1.8 1.8 0 1 1 3.6 0v.07a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.05-.06A1.8 1.8 0 1 1 19.5 7.4l-.06.05a1.5 1.5 0 0 0-.3 1.65v.07a1.5 1.5 0 0 0 1.37.9h.14a1.8 1.8 0 1 1 0 3.6h-.07a1.5 1.5 0 0 0-1.37.9Z"/>`,
+  tag    : `<path d="M3.6 10.6V5.2a1.6 1.6 0 0 1 1.6-1.6h5.4c.42 0 .83.17 1.13.47l7.7 7.7a1.6 1.6 0 0 1 0 2.26l-5.4 5.4a1.6 1.6 0 0 1-2.26 0l-7.7-7.7a1.6 1.6 0 0 1-.47-1.13Z"/><circle cx="8.2" cy="8.2" r="1.4"/>`,
+  copy   : `<rect x="8.6" y="8.6" width="11" height="11" rx="2.6"/><path d="M15.4 5.6a2 2 0 0 0-2-2H5.6a2 2 0 0 0-2 2v7.8a2 2 0 0 0 2 2"/>`,
+  terminal:`<rect x="3.2" y="4.6" width="17.6" height="14.8" rx="2.6"/><path d="m7.6 10 2.4 2.4-2.4 2.4"/><path d="M12.8 15h3.6"/>`,
+  library: `<path d="M4.8 4.6h8.4a2.6 2.6 0 0 1 2.6 2.6v12.2H7.4a2.6 2.6 0 0 1-2.6-2.6V4.6Z"/><path d="M15.8 7.3h2.2a1.2 1.2 0 0 1 1.2 1.2v9.7a1.2 1.2 0 0 1-1.2 1.2h-2.2"/>`,
+  more   : `<circle cx="5.8" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.2" cy="12" r="1.5" fill="currentColor" stroke="none"/>`,
+  file   : `<path d="M6.4 3.8h7l4.6 4.6v11.8a1.2 1.2 0 0 1-1.2 1.2H6.4a1.2 1.2 0 0 1-1.2-1.2V5a1.2 1.2 0 0 1 1.2-1.2Z"/><path d="M13.2 4v4.4h4.4"/>`,
+  link   : `<path d="M10.2 13.8a4 4 0 0 0 5.7 0l2.6-2.6a4 4 0 1 0-5.7-5.7l-1.2 1.2"/><path d="M13.8 10.2a4 4 0 0 0-5.7 0l-2.6 2.6a4 4 0 1 0 5.7 5.7l1.2-1.2"/>`,
+  play   : `<path d="M8 5.2v13.6L19 12 8 5.2Z"/>`,
+  refresh: `<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.2 4.6v5h-5"/>`,
+  pin    : `<path d="M15.6 3.6 20.4 8.4l-3 1.4-3.2 3.2.5 3.4-2 2-3.7-3.7-3.6 3.6"/><path d="M6.7 14.3 3.6 20.4"/>`,
+  bell   : `<path d="M6.4 10.4a5.6 5.6 0 0 1 11.2 0v3.4l1.4 2.6H5l1.4-2.6v-3.4Z"/><path d="M10 19.2a2 2 0 0 0 4 0"/>`,
+  shield : `<path d="M12 3.4 5 6v6.2c0 3.6 2.9 7 7 8.4 4.1-1.4 7-4.8 7-8.4V6l-7-2.6Z"/>`,
+  palette: `<path d="M12 3.6a8.4 8.4 0 0 0 0 16.8c1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8h2.1A5.1 5.1 0 0 0 21.8 12c0-4.6-4.4-8.4-9.8-8.4Z"/><circle cx="8" cy="10.4" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="7.8" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="10.4" r="1.3" fill="currentColor" stroke="none"/>`,
+  info   : `<circle cx="12" cy="12" r="8.4"/><path d="M12 11v5.4"/><circle cx="12" cy="7.9" r="1" fill="currentColor" stroke="none"/>`,
+  send   : `<path d="M20.4 3.6 3.6 10.2l6.6 3.6 3.6 6.6 6.6-16.8Z"/><path d="M10.2 13.8 20.4 3.6"/>`,
+  star   : `<path d="m12 3.8 2.7 5.5 6 .9-4.4 4.3 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.3 10.2l6-.9L12 3.8Z"/>`,
+  eye    : `<path d="M2.6 12S6 5.6 12 5.6 21.4 12 21.4 12 18 18.4 12 18.4 2.6 12 2.6 12Z"/><circle cx="12" cy="12" r="3"/>`,
+  sparkle: `<path d="M12 3.4 13.7 9.1a2 2 0 0 0 1.3 1.3L20.6 12l-5.6 1.6a2 2 0 0 0-1.3 1.3L12 20.6l-1.7-5.7a2 2 0 0 0-1.3-1.3L3.4 12 9 10.4a2 2 0 0 0 1.3-1.3Z"/>`,
+  down   : `<path d="M12 4.6v14.8"/><path d="m6.4 13.8 5.6 5.6 5.6-5.6"/>`,
+  filter : `<path d="M3.6 5.6h16.8l-6.6 7.6v5.6l-3.6-1.8v-3.8L3.6 5.6Z"/>`,
+  bulb2  : `<circle cx="12" cy="12" r="8.4"/><path d="M12 8.4v4.2"/><circle cx="12" cy="15.8" r="1" fill="currentColor" stroke="none"/>`,
+  folder2: `<rect x="3.6" y="5.6" width="16.8" height="12.8" rx="2.4"/><path d="M3.6 10.4h16.8"/>`,
+};
+
+/* ============================================================
+   1. 状态
+   ============================================================ */
+const state = {
+  view: 'main',
+  nav: 'all',
+  lang: 'tech',
+  scope: 'all',
+  q: '',
+  busy: false,
+  captureIdx: 0,
+  extra: { idea: [], todo: [], code: [] },
+  vsConnected: false,
+  floatOpen: false,
+  floatTab: 'idea',
+  chatBusy: false,
+  chat: [
+    { role: 'ai', text: '你好。我只会依据你自己记录的内容回答，不会去互联网上找答案。' },
+    { role: 'ai', text: '试试问我：「我最近记了哪些跟 React 性能有关的东西？」' },
+  ],
+  closed: false,
+};
+
+const SCOPE_LABEL = { all: '搜索', idea: '想法', doc: '资料', todo: '待办' };
+const SCOPE_NAV   = { all: 'all', idea: 'idea', doc: 'doc', todo: 'todo' };
+
+const NAV = [
+  { g: '工作台' },
+  { id: 'all',   n: '全部信息', ic: 'layers', ct: '137' },
+  { id: 'idea',  n: '想法',     ic: 'bulb',   ct: '12' },
+  { id: 'doc',   n: '资料',     ic: 'folder', ct: '48' },
+  { id: 'todo',  n: '待办',     ic: 'check',  ct: '3', hot: true },
+  { id: 'recap', n: '回顾',     ic: 'clock' },
+  { g: '智能能力' },
+  { id: 'code',  n: 'VS 代码分析', ic: 'code', hook: true },
+  { id: 'chat',  n: '智能问答',     ic: 'chat' },
+  { id: 'tools', n: '工具箱',       ic: 'grid' },
+  { g: '系统' },
+  { id: 'trash', n: '回收站', ic: 'trash' },
+  { id: 'setting', n: '设置', ic: 'gear' },
+];
+
+const PAGE = {
+  all:    { t: '全部信息', s: '想法、资料、待办都在这里，共 137 条' },
+  idea:   { t: '想法',     s: '随手记下的灵感与待验证的判断' },
+  doc:    { t: '资料',     s: '收藏的文档、链接与代码片段' },
+  todo:   { t: '待办',     s: '3 条待处理，按截止时间排序' },
+  recap:  { t: '回顾',     s: '本周沉淀与高频主题' },
+  code:   { t: 'VS 代码分析', s: '自动解析 Visual Studio 解决方案，沉淀可检索的代码笔记' },
+  chat:   { t: '智能问答', s: '基于你记录的内容回答问题' },
+  tools:  { t: '工具箱',   s: '常用的小工具集合' },
+  trash:  { t: '回收站',   s: '删除的内容会保留 30 天' },
+  setting:{ t: '设置',     s: '偏好、快捷键与数据管理' },
+};
+
+/* ---------- 样例数据：每条都有「专业版 / 大白话版」两种写法 ---------- */
+const DB = {
+  idea: [
+    { ic:'bulb', kind:'brand', t:'把「回顾」做成自动周报', p:'每周把随手记的东西自动整理成一页周报', src:'手动记录', time:'10 分钟前' },
+    { ic:'code', kind:'code',  t:'React · TodoList 的 memo 粒度太粗', p:'待办清单组件每次输入都整个重渲染，应该拆细', src:'VS 代码分析', time:'2 小时前' },
+    { ic:'bulb', kind:'brand', t:'浮窗支持全局快捷键唤起', p:'按一个键就把浮窗叫出来，不用先去找图标', src:'手动记录', time:'昨天 21:40' },
+    { ic:'link', kind:'',      t:'「分类标签」应该支持嵌套', p:'标签下面还能再挂子标签，不然会越来越平', src:'网页剪藏', time:'昨天 16:12' },
+  ],
+  doc: [
+    { ic:'file', kind:'',     t:'个人信息管家 · 产品需求说明 v2.3', p:'产品需求说明 第二版第三次修订', src:'本地文档', time:'3 天前' },
+    { ic:'code', kind:'code', t:'React 性能优化清单', p:'React 提速的十几个技巧整理', src:'剪贴板', time:'5 天前' },
+    { ic:'link', kind:'',     t:'设计系统 Token 命名规范', p:'设计变量怎么起名字的那套约定', src:'网页剪藏', time:'上周' },
+    { ic:'file', kind:'',     t:'桌面伴侣 · 快捷键冲突排查记录', p:'快捷键跟别的软件打架的问题记录', src:'手动记录', time:'上周' },
+  ],
+  todo: [
+    { ic:'check', kind:'brand', t:'补齐交互态设计稿', p:'把按钮、导航、输入的 6 个状态画出来', done:true,  src:'手动记录', time:'今天' },
+    { ic:'check', kind:'brand', t:'导出 Design Token 给开发', p:'把色值和过渡时值导出成 CSS 变量', done:false, src:'手动记录', time:'今天' },
+    { ic:'check', kind:'brand', t:'确认浮窗高度 500 还是 520', p:'浮窗要不要留出记录列表的位置', done:false, src:'手动记录', time:'今天' },
+  ],
+  code: [
+    { ic:'code', kind:'code', t:'Program.cs · 依赖注入注册顺序有误', p:'程序入口里注册服务的顺序不对，会报错', src:'Solution: Hub.Desktop', time:'14 分钟前' },
+    { ic:'code', kind:'code', t:'TodoList.tsx · 缺少 useCallback', p:'待办清单组件少了一层缓存，输入时全量重渲染', src:'Solution: Hub.Web', time:'2 小时前' },
+    { ic:'code', kind:'code', t:'ClipboardWatcher.cs · 事件未解绑', p:'剪贴板监听没取消订阅，关窗后内存不释放', src:'Solution: Hub.Desktop', time:'昨天' },
+  ],
+};
+
+const CAPTURE_POOL = [
+  { ic:'code', kind:'code',  t:'SortableList 拖拽后索引未同步', p:'拖动排序之后索引没跟着更新，顺序会乱', src:'剪贴板' },
+  { ic:'bulb', kind:'brand', t:'快捷键应该可自定义', p:'Ctrl+Shift+A 跟别的软件撞了，想自己改', src:'剪贴板' },
+  { ic:'code', kind:'code',  t:'ConfirmDialog 未处理 Esc 关闭', p:'确认弹窗按 Esc 关不掉，键盘用户很难受', src:'剪贴板' },
+  { ic:'link', kind:'',      t:'Windows 托盘图标点击区域偏小', p:'右下角托盘的图标不太好点中', src:'剪贴板' },
+];
+
+/* ============================================================
+   2. 侧栏 / 顶栏
+   ============================================================ */
+function renderSidebar() {
+  const sb = $('#sidebar');
+  const cnt = {
+    all: 137,
+    idea: 12 + state.extra.idea.length,
+    doc: 48,
+    todo: DB.todo.filter(t => !t.done).length + state.extra.todo.filter(t => !t.done).length,
+  };
+  let h = '';
+  for (const it of NAV) {
+    if (it.g) { h += `<div class="sg">${it.g}</div>`; continue; }
+    const on = state.nav === it.id ? ' is-on' : '';
+    const n = cnt[it.id] != null ? cnt[it.id] : it.ct;
+    h += `<button class="nav fx${on}" data-nav="${it.id}">
+      <span class="nv-ic">${SVG(I[it.ic], 20, 1.7)}</span>
+      <span class="nv-tx">${it.n}</span>
+      ${n ? `<span class="nv-ct">${n}</span>` : ''}
+      ${it.hook ? `<span class="hook"></span>` : ''}
+    </button>`;
+  }
+  h += `<div class="sbar-sp"></div><div class="sbar-div"></div>
+    <button class="nav sub fx" data-act="tags">
+      <span class="nv-ic">${SVG(I.tag, 20, 1.7)}</span>
+      <span class="nv-tx">分类标签</span>
+      ${SVG(`<path d="m9.5 6.5 5.5 5.5-5.5 5.5"/>`, 15, 1.9)}
+    </button>`;
+  sb.innerHTML = h;
+}
+
+function renderPageHead() {
+  const p = PAGE[state.nav];
+  $('#pageTitle').textContent = p.t;
+  let sub = p.s;
+  if (state.nav === 'todo') {
+    const open = DB.todo.filter(t => !t.done).length + state.extra.todo.filter(t => !t.done).length;
+    sub = `${open} 条待处理，按截止时间排序`;
+  }
+  if (state.nav === 'idea') {
+    sub = `${12 + state.extra.idea.length} 条想法，按时间倒序`;
+  }
+  $('#pageSub').textContent = sub;
+}
+
+/* ============================================================
+   3. 内容渲染
+   ============================================================ */
+function liHTML(it, i, opt = {}) {
+  const primary = state.lang === 'tech' ? it.t : it.p;
+  const second  = state.lang === 'tech' ? it.p : it.t;
+  const delay   = opt.fade ? ` style="animation-delay:${Math.min(i, 7) * 55}ms"` : '';
+  const cls     = `li${it.done ? ' done' : ''}${opt.fade ? ' fadeup' : ''}`;
+  return `<div class="${cls}" data-idx="${i}" data-text="${(it.t + it.p + it.src).replace(/"/g, '&quot;')}"${delay}>
+    <div class="li-ic ${it.kind || ''}">${SVG(I[it.ic] || I.file, 17, 1.8)}</div>
+    <div class="li-bd">
+      <div class="li-tt">${primary}</div>
+      <div class="li-ds">${second}</div>
+      <div class="li-mt"><span>${it.src}</span><span class="sep"></span><span>${it.time || ''}</span></div>
+    </div>
+    <div class="li-ac">
+      <button class="ib fx" data-act="copy" title="复制">${SVG(I.copy, 16, 1.8)}</button>
+      <button class="ib fx" data-act="more" title="更多">${SVG(I.more, 16, 1.8)}</button>
+    </div>
+  </div>`;
+}
+
+function listHTML(items, opt = {}) {
+  if (!items.length) return emptyInline();
+  return `<div class="list">${items.map((it, i) => liHTML(it, i, opt)).join('')}</div>`;
+}
+
+function emptyInline() {
+  return `<div class="empty">
+    <div class="empty-ic">${SVG(I.filter, 26, 1.8)}</div>
+    <div class="empty-t">没有匹配的内容</div>
+    <div class="empty-d">换个关键词试试，或者把「搜索」范围从「${SCOPE_LABEL[state.scope]}」切回「全部」。</div>
+  </div>`;
+}
+
+function statHTML(l, v, u, brand) {
+  const isText = typeof v === 'string' && !/^\d+$/.test(v);
+  return `<div class="stat"><div class="st-l">${l}</div>
+    <div class="st-v${brand ? ' brand' : ''}${isText ? ' txt' : ''}">${v}${u ? `<i>${u}</i>` : ''}</div></div>`;
+}
+
+function filtered(items) {
+  if (!state.q) return items;
+  const q = state.q.toLowerCase();
+  return items.filter(it => (it.t + it.p + it.src).toLowerCase().includes(q));
+}
+
+function viewHTML() {
+  const fade = { fade: state.fadeIn };
+  switch (state.nav) {
+
+    case 'all': {
+      const mix = [DB.idea[0], DB.todo[2], DB.code[0], DB.doc[0], DB.idea[1], DB.doc[2]];
+      const f = filtered(mix);
+      return `
+        <div class="stats">
+          ${statHTML('本周新增', '24', '条')}
+          ${statHTML('待办未完成', '3', '条', true)}
+          ${statHTML('代码笔记', '48', '条')}
+          ${statHTML('连续记录', '12', '天')}
+        </div>
+        <div class="sec-h"><span class="sec-t">最近记录</span><span class="sec-m">按时间倒序</span></div>
+        ${f.length ? listHTML(f, fade) : emptyInline()}`;
+    }
+
+    case 'idea': {
+      const items = filtered([...state.extra.idea, ...DB.idea]);
+      return `<div class="sec-h"><span class="sec-t">全部想法</span><span class="sec-m">共 ${items.length} 条</span></div>
+        ${listHTML(items, fade)}`;
+    }
+
+    case 'doc': {
+      const items = filtered(DB.doc);
+      return `<div class="sec-h"><span class="sec-t">资料库</span><span class="sec-m">共 ${items.length} 条</span></div>
+        ${listHTML(items, fade)}`;
+    }
+
+    case 'todo': {
+      const items = filtered([...state.extra.todo, ...DB.todo]);
+      const done = items.filter(i => i.done).length;
+      return `
+        <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+          ${statHTML('今日待办', items.length, '条')}
+          ${statHTML('已完成', done, '条')}
+          ${statHTML('逾期', '0', '条')}
+        </div>
+        <div class="sec-h"><span class="sec-t">待处理</span><span class="sec-m">点复选框可标记完成</span></div>
+        <div class="list">${items.map((it, i) => todoHTML(it, i, fade)).join('')}</div>`;
+    }
+
+    case 'recap': {
+      const bars = [
+        { l: '一', h: 42 }, { l: '二', h: 66 }, { l: '三', h: 30 },
+        { l: '四', h: 84, hi: 1 }, { l: '五', h: 58 }, { l: '六', h: 22 }, { l: '日', h: 14 },
+      ];
+      return `
+        <div class="stats">
+          ${statHTML('本周记录', '24', '条')}
+          ${statHTML('最活跃', '周四', '')}
+          ${statHTML('主题数', '6', '个', true)}
+          ${statHTML('沉淀为资料', '5', '条')}
+        </div>
+        <div class="card">
+          <div class="sec-h" style="margin-bottom:14px"><span class="sec-t">记录分布</span><span class="sec-m">最近 7 天</span></div>
+          <div class="bars">
+            ${bars.map(b => `<div class="bar${b.hi ? ' hi' : ''}"><div class="b" style="height:${b.h}px"></div><div class="bl">${b.l}</div></div>`).join('')}
+          </div>
+        </div>
+        <div class="sec-h"><span class="sec-t">本周高频主题</span><span class="sec-m">自动聚类</span></div>
+        <div class="card">
+          <div class="tags">
+            <span class="tag is-on">React 性能 · 7</span>
+            <span class="tag">交互态规范 · 5</span>
+            <span class="tag">VS 代码分析 · 4</span>
+            <span class="tag">快捷键 · 3</span>
+            <span class="tag">Design Token · 2</span>
+            <span class="tag">浮窗 · 2</span>
+          </div>
+        </div>`;
+    }
+
+    case 'code': {
+      if (!state.vsConnected) {
+        return `<div class="empty">
+          <div class="empty-ic">${SVG(I.code, 26, 1.9)}</div>
+          <div class="empty-t">暂无分析记录</div>
+          <div class="empty-d">启动 Visual Studio 后，桌面伴侣会自动监听并解析解决方案代码，把结构化要点沉淀到这里。</div>
+          <div class="hint-row"><span class="kbd">Ctrl + Shift + A</span><span>复制代码后按下即可快速记录</span></div>
+          <button class="btn primary fx" id="connectVs" style="height:38px;padding:0 18px;border-radius:var(--r-10)">
+            <span class="cv-ic" style="display:flex"></span><span class="cv-tx">连接 Visual Studio</span>
+          </button>
+        </div>`;
+      }
+      const items = [...state.extra.code, ...DB.code];
+      return `
+        <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+          ${statHTML('已解析解决方案', '2', '个')}
+          ${statHTML('代码笔记', items.length, '条', true)}
+          ${statHTML('最近同步', '刚刚', '')}
+        </div>
+        <div class="sec-h"><span class="sec-t">解析结果</span>
+          <span class="chip green"><span class="dot"></span>已连接 Visual Studio</span></div>
+        ${listHTML(items, fade)}`;
+    }
+
+    case 'chat': {
+      return `<div class="chat">
+        <div class="chat-body" id="chatBody">
+          ${state.chat.map(m => m.role === 'typing'
+            ? `<div class="msg ai typing"><i></i><i></i><i></i></div>`
+            : `<div class="msg ${m.role === 'ai' ? 'ai' : 'me'}">${m.text}</div>`).join('')}
+        </div>
+        <div class="chat-foot">
+          <input class="input fx" id="chatInput" placeholder="基于你记录的内容提问…" autocomplete="off">
+          <button class="btn primary fx" id="chatSend" style="height:44px;padding:0 18px;border-radius:var(--r-12)">
+            <span style="display:flex">${SVG(I.send, 17, 1.9)}</span>发送
+          </button>
+        </div>
+      </div>`;
+    }
+
+    case 'tools': {
+      const tools = [
+        { ic: 'terminal', t: '代码生成', d: '把代码笔记转成可复用的片段' },
+        { ic: 'library',  t: '速查库',   d: '高频命令与写法速查' },
+        { ic: 'down',     t: '导出报告', d: '按时间或标签导出 Markdown' },
+        { ic: 'tag',      t: '批量打标签', d: '对选中内容一次归类' },
+        { ic: 'eye',      t: '隐私检查', d: '扫描记录里的敏感信息' },
+        { ic: 'refresh',  t: '同步与备份', d: '本地加密备份到云盘' },
+      ];
+      return `<div class="sec-h"><span class="sec-t">全部工具</span><span class="sec-m">共 ${tools.length} 个</span></div>
+        <div class="tgrid">${tools.map(t => `
+          <button class="tool fx" data-act="tool" data-tool-name="${t.t}">
+            <span class="tl-ic">${SVG(I[t.ic], 18, 1.8)}</span>
+            <span class="tl-t">${t.t}</span>
+            <span class="tl-d">${t.d}</span>
+          </button>`).join('')}</div>`;
+    }
+
+    case 'trash': {
+      return `<div class="empty">
+        <div class="empty-ic">${SVG(I.trash, 26, 1.8)}</div>
+        <div class="empty-t">回收站是空的</div>
+        <div class="empty-d">删除的想法、资料与待办会在这里保留 <b>30 天</b>，到期自动清除。</div>
+        <button class="btn ghost fx" data-act="trash-info" style="height:36px">查看清理规则</button>
+      </div>`;
+    }
+
+    case 'setting': {
+      const rows = [
+        { t: '开机自动启动', d: '登录系统后静默驻留托盘', on: true },
+        { t: '监听剪贴板',   d: '复制文本后自动提示可记录', on: true },
+        { t: 'VS 代码分析',  d: '检测到 Visual Studio 时自动解析', on: state.vsConnected },
+        { t: '发送匿名统计', d: '仅上报崩溃信息，不含任何记录内容', on: false },
+      ];
+      return `
+        <div class="sec-h"><span class="sec-t">通用</span><span class="sec-m">改动即时生效</span></div>
+        ${rows.map(r => `<div class="row-item">
+          <div class="rw-bd"><div class="rw-t">${r.t}</div><div class="rw-d">${r.d}</div></div>
+          <input type="checkbox" class="tgl" ${r.on ? 'checked' : ''}>
+        </div>`).join('')}
+        <div class="sec-h" style="margin-top:6px"><span class="sec-t">快捷键</span></div>
+        <div class="row-item">
+          <div class="rw-bd"><div class="rw-t">快速记录</div><div class="rw-d">在任意位置唤起记录浮窗</div></div>
+          <span class="kbd">Ctrl + Shift + A</span>
+        </div>
+        <div class="row-item">
+          <div class="rw-bd"><div class="rw-t">读取选区</div><div class="rw-d">把当前选中的文本读进浮窗</div></div>
+          <span class="kbd">Ctrl + Shift + R</span>
+        </div>`;
+    }
+  }
+  return '';
+}
+
+function todoHTML(it, i, opt = {}) {
+  const primary = state.lang === 'tech' ? it.t : it.p;
+  const second  = state.lang === 'tech' ? it.p : it.t;
+  const delay   = opt.fade ? ` style="animation-delay:${Math.min(i, 7) * 55}ms"` : '';
+  return `<div class="li${it.done ? ' done' : ''}${opt.fade ? ' fadeup' : ''}" data-todo="${i}"${delay}>
+    <button class="ck fx${it.done ? ' on' : ''}" data-act="toggle" data-idx="${i}">
+      ${SVG('<path d="m6.6 12.4 3.4 3.4 7.4-8"/>', 14, 2.4)}
+    </button>
+    <div class="li-bd">
+      <div class="li-tt">${primary}</div>
+      <div class="li-ds">${second}</div>
+      <div class="li-mt"><span>${it.src}</span><span class="sep"></span><span>${it.time || ''}</span></div>
+    </div>
+    <div class="li-ac">
+      <button class="ib fx" data-act="more" title="更多">${SVG(I.more, 16, 1.8)}</button>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   4. 渲染入口
+   ============================================================ */
+function renderContent() {
+  const c = $('#content');
+  c.className = 'content' + (state.nav === 'chat' ? ' is-flush' : '');
+  c.style.padding = state.nav === 'chat' ? '0' : '';
+  if (state.skeleton) {
+    c.innerHTML = `<div class="sec-h"><span class="sec-t">正在解析…</span><span class="sec-m">请稍候</span></div>
+      <div class="list">${Array.from({ length: state.skeleton }).map(() => `
+        <div class="sk">
+          <div class="sk-ic shim"></div>
+          <div class="sk-col"><div class="sk-b1 shim"></div><div class="sk-b2 shim"></div></div>
+        </div>`).join('')}</div>`;
+    return;
+  }
+  c.innerHTML = viewHTML();
+  state.fadeIn = false;
+  if (state.nav === 'chat') {
+    const cb = $('#chatBody');
+    if (cb) cb.scrollTop = cb.scrollHeight;
+    const ci = $('#chatInput');
+    if (ci) ci.addEventListener('keydown', e => { if (e.key === 'Enter') doChat(); });
+    const cs = $('#chatSend');
+    if (cs) cs.addEventListener('click', doChat);
+  }
+  if (state.nav === 'code' && !state.vsConnected) {
+    const b = $('#connectVs');
+    if (b) b.addEventListener('click', connectVs);
+  }
+}
+
+function renderAll() {
+  renderSidebar();
+  renderPageHead();
+  renderContent();
+  renderFloatList();
+  $('#langTog').classList.toggle('is-off', state.nav === 'code' || state.nav === 'trash' || state.nav === 'setting');
+  $('#langTog').querySelectorAll('.vt-i').forEach(b => b.classList.toggle('is-on', b.dataset.lang === state.lang));
+}
+
+/* ============================================================
+   5. Toast
+   ============================================================ */
+function toast(msg, kind = 'ok') {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  const ic = kind === 'ok'
+    ? '<path d="m6.6 12.4 3.4 3.4 7.4-8"/>'
+    : '<circle cx="12" cy="12" r="8.4"/><path d="M12 8v4.6"/><circle cx="12" cy="15.8" r="1" fill="currentColor" stroke="none"/>';
+  t.innerHTML = `<span class="ti">${SVG(ic, 16, 2.2)}</span>${msg}`;
+  $('#toasts').appendChild(t);
+  setTimeout(() => {
+    t.classList.add('out');
+    setTimeout(() => t.remove(), 220);
+  }, 2200);
+}
+
+/* ============================================================
+   6. 交互：导航 / 搜索 / 范围
+   ============================================================ */
+$('#sidebar').addEventListener('click', e => {
+  const nav = e.target.closest('[data-nav]');
+  if (nav) { setNav(nav.dataset.nav); return; }
+  const tags = e.target.closest('[data-act="tags"]');
+  if (tags) { toast('分类标签面板 · 待设计', 'info'); return; }
+});
+
+function setNav(id) {
+  if (state.nav === id) return;
+  state.nav = id;
+  if (state.scope !== 'all' && SCOPE_NAV[state.scope] === id) { /* 保持一致 */ }
+  renderAll();
+}
+
+/* 搜索 */
+const si = $('#searchInput');
+si.addEventListener('focus', () => $('#searchWrap').classList.add('is-focus'));
+si.addEventListener('blur',  () => $('#searchWrap').classList.remove('is-focus'));
+si.addEventListener('input', () => {
+  state.q = si.value.trim();
+  $('#searchWrap').classList.toggle('has-q', !!si.value);
+  renderContent();
+});
+$('#searchClear').addEventListener('click', () => {
+  si.value = ''; state.q = '';
+  $('#searchWrap').classList.remove('has-q');
+  renderContent(); si.focus();
+});
+
+/* 搜索范围下拉 */
+const menu = $('#scopeMenu');
+function buildMenu() {
+  const opts = [['all', '全部'], ['idea', '想法'], ['doc', '资料'], ['todo', '待办']];
+  menu.innerHTML = opts.map(([k, l]) =>
+    `<button data-scope="${k}" class="${state.scope === k ? 'is-on' : ''}">
+      <span class="mk">${SVG('<path d="m6.6 12.4 3.4 3.4 7.4-8"/>', 14, 2.6)}</span>${l}
+    </button>`).join('');
+}
+$('#scopeBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const open = menu.classList.contains('open');
+  if (open) { menu.classList.remove('open'); $('#scopeBtn').classList.remove('is-open'); return; }
+  buildMenu();
+  const r = $('#scopeBtn').getBoundingClientRect();
+  const sr = $('#stage').getBoundingClientRect();
+  menu.style.left = (r.left - sr.left) + 'px';
+  menu.style.top  = (r.bottom - sr.top + 6) + 'px';
+  menu.classList.add('open');
+  $('#scopeBtn').classList.add('is-open');
+});
+menu.addEventListener('click', e => {
+  const b = e.target.closest('[data-scope]');
+  if (!b) return;
+  const k = b.dataset.scope;
+  state.scope = k;
+  $('#scopeLabel').textContent = SCOPE_LABEL[k];
+  menu.classList.remove('open');
+  $('#scopeBtn').classList.remove('is-open');
+  if (k !== 'all' && state.nav !== SCOPE_NAV[k]) setNav(SCOPE_NAV[k]);
+  toast(`搜索范围已切到「${SCOPE_LABEL[k]}」`);
+});
+document.addEventListener('click', () => {
+  menu.classList.remove('open');
+  $('#scopeBtn').classList.remove('is-open');
+});
+
+/* 语言切换 */
+$('#langTog').addEventListener('click', e => {
+  const b = e.target.closest('[data-lang]');
+  if (!b) return;
+  const l = b.dataset.lang;
+  if (l === state.lang) return;
+  state.lang = l;
+  renderAll();
+  toast(l === 'tech' ? '已切到「专业版」文案' : '已切到「大白话版」文案');
+});
+
+/* ============================================================
+   7. 核心流程：快速记录 → spinner → 骨架屏 → 淡入
+   ============================================================ */
+const capBtn = $('#captureBtn');
+capBtn.addEventListener('click', captureFlow);
+
+async function captureFlow() {
+  if (state.busy) return;
+  state.busy = true;
+
+  /* 先把落点切到「想法」，让整段流程发生在一个视图里，避免中途跳页 */
+  if (state.nav !== 'idea') setNav('idea');
+  await wait(120);
+
+  /* ① 按钮转加载态：宽度锁定，标签与图标原地替换 —— 不允许出现抖动 */
+  const w = capBtn.offsetWidth;
+  capBtn.style.width = w + 'px';
+  capBtn.classList.add('is-loading');
+  capBtn.querySelector('.b-tx').textContent = '处理中';
+  capBtn.querySelector('.b-ic').innerHTML = '<span class="spin"></span>';
+  await wait(620);
+
+  /* ② 骨架屏：灰块与真实列表项同尺寸，撑住结构 */
+  state.skeleton = 3;
+  renderContent();
+  await wait(900);
+
+  /* ③ 数据到达，原位淡入 */
+  const item = CAPTURE_POOL[state.captureIdx++ % CAPTURE_POOL.length];
+  state.extra.idea.unshift({ ...item, time: '刚刚' });
+  state.skeleton = 0;
+  state.fadeIn = true;
+  renderAll();
+
+  /* ④ 按钮复位，宽度在下一帧才释放 */
+  capBtn.classList.remove('is-loading');
+  capBtn.querySelector('.b-tx').textContent = '快速记录';
+  capBtn.querySelector('.b-ic').innerHTML = SVG('<path d="M12 5.2v13.6M5.2 12h13.6"/>', 20, 2);
+  requestAnimationFrame(() => { capBtn.style.width = ''; });
+
+  toast('已记录 1 条 · 来自剪贴板');
+  state.busy = false;
+}
+
+/* 导出 / AI / 窗口控件 */
+$('#exportBtn').addEventListener('click', async () => {
+  const b = $('#exportBtn');
+  if (b.classList.contains('is-loading')) return;
+  b.classList.add('is-loading');
+  b.innerHTML = '<span class="spin dark"></span>';
+  await wait(900);
+  b.classList.remove('is-loading');
+  b.innerHTML = SVG(`<path d="M12 15.4V4M12 4 8.3 7.7M12 4l3.7 3.7"/><path d="M4.6 14.6v3a2.4 2.4 0 0 0 2.4 2.4h10a2.4 2.4 0 0 0 2.4-2.4v-3"/>`, 20, 1.8);
+  toast('报告已导出 · 保存到「下载」');
+});
+
+$('#aiBtn').addEventListener('click', () => {
+  openFloat('dock');
+  toast('悬浮窗已唤起 · 拖到屏幕任意位置', 'info');
+});
+
+$('#winMain').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const a = b.dataset.act;
+  if (a === 'win-min') toast('窗口已最小化到托盘', 'info');
+  if (a === 'win-max') toast('窗口已最大化', 'info');
+  if (a === 'win-close') {
+    state.closed = true;
+    $('#winMain').classList.add('is-closed');
+    $('#restoreBtn').style.display = '';
+    $('#restoreWrap').classList.add('show');
+  }
+});
+$('#restoreBtn').addEventListener('click', () => {
+  state.closed = false;
+  $('#winMain').classList.remove('is-closed');
+  $('#restoreBtn').style.display = 'none';
+  $('#restoreWrap').classList.toggle('show', $('#restoreFloat').style.display !== 'none');
+});
+$('#restoreBtn').style.display = 'none';
+
+/* ============================================================
+   8. 列表内动作
+   ============================================================ */
+$('#content').addEventListener('click', e => {
+  /* 1) 显式动作优先 */
+  const act = e.target.closest('[data-act]');
+  if (act) { cardAct(act.dataset.act, act); return; }
+  /* 2) 工具卡 */
+  const tool = e.target.closest('[data-tool-name]');
+  if (tool) { toast(`已打开「${tool.dataset.toolName}」`, 'info'); return; }
+  /* 3) 列表项 → 详情 */
+  const li = e.target.closest('.li[data-idx]');
+  if (li) { toast('打开详情侧栏 · 待设计', 'info'); return; }
+  /* 4) 浮窗样式的迷你列表项 */
+  const fli = e.target.closest('.fli');
+  if (fli) { toast('打开详情侧栏 · 待设计', 'info'); }
+});
+
+function cardAct(a, el) {
+  switch (a) {
+    case 'copy': {
+      const li = el.closest('.li');
+      const t = li.querySelector('.li-tt').textContent;
+      navigator.clipboard?.writeText(t).catch(() => {});
+      toast('已复制到剪贴板');
+      break;
+    }
+    case 'toggle': {
+      const i = +el.dataset.idx;
+      const pool = [...state.extra.todo, ...DB.todo];
+      const src = pool[i];
+      if (!src) return;
+      src.done = !src.done;
+      el.classList.toggle('on', src.done);
+      el.closest('.li').classList.toggle('done', src.done);
+      toast(src.done ? '已完成' : '已取消完成');
+      refreshTodoStats();
+      break;
+    }
+    case 'more':      toast('更多操作菜单 · hover 才显现', 'info'); break;
+    case 'trash-info':toast('删除内容保留 30 天，到期自动清除', 'info'); break;
+    case 'tool':      toast(`已打开「${el.dataset.toolName}」`, 'info'); break;
+  }
+}
+
+/* 勾选后同步「已完成 / 待处理」两个统计块 */
+function refreshTodoStats() {
+  const wrap = $('#content .stats');
+  if (!wrap || wrap.children.length < 2) return;
+  const all = [...state.extra.todo, ...DB.todo];
+  wrap.children[0].querySelector('.st-v').innerHTML = all.length + '<i>条</i>';
+  wrap.children[1].querySelector('.st-v').innerHTML = all.filter(t => t.done).length + '<i>条</i>';
+}
+
+/* ============================================================
+   9. 连接 Visual Studio
+   ============================================================ */
+let vsBusy = false;
+async function connectVs() {
+  if (vsBusy || state.vsConnected) return;
+  vsBusy = true;
+
+  const btn = $('#connectVs');
+  const w = btn.offsetWidth;
+  btn.style.width = w + 'px';
+  btn.classList.add('is-loading');
+  btn.querySelector('.cv-tx').textContent = '正在连接';
+  btn.querySelector('.cv-ic').innerHTML = '<span class="spin"></span>';
+
+  await wait(680);
+  state.skeleton = 3;
+  renderContent();
+  await wait(900);
+
+  state.vsConnected = true;
+  state.skeleton = 0;
+  state.fadeIn = true;
+  renderAll();
+  updateVsChip();
+  toast('已连接 Visual Studio · 解析到 2 个解决方案');
+  vsBusy = false;
+}
+
+/* ============================================================
+   10. 智能问答
+   ============================================================ */
+async function doChat() {
+  const inp = $('#chatInput');
+  if (!inp || state.chatBusy) return;
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  state.chat.push({ role: 'me', text });
+  state.chat.push({ role: 'typing' });
+  state.chatBusy = true;
+  if (state.nav !== 'chat') setNav('chat'); else renderContent();
+
+  await wait(950);
+  state.chat = state.chat.filter(m => m.role !== 'typing');
+  const answer = /react|性能/i.test(text)
+    ? '你记录过 3 条相关的内容：<br>① <b>TodoList 的 memo 粒度太粗</b>——待办清单组件每次输入都整个重渲染；<br>② <b>React 性能优化清单</b>——5 天前从剪贴板存进资料库；<br>③ <b>TodoList.tsx 缺少 useCallback</b>——VS 代码分析在 2 小时前给出。'
+    : /快捷键|shortcut/i.test(text)
+      ? '你记了 2 条：<b>浮窗支持全局快捷键唤起</b>（昨天 21:40）和 <b>快捷键应该可自定义</b>（刚刚，来自剪贴板）。两条其实指向同一件事。'
+      : '我在你的记录里找到了相关内容，但没有能直接回答这个问题的条目。可以换个说法，或者先把它记成一条想法。';
+  state.chat.push({ role: 'ai', text: answer });
+  state.chatBusy = false;
+  renderContent();
+  if (state.nav === 'chat') {
+    const cb = $('#chatBody');
+    if (cb) cb.scrollTop = cb.scrollHeight;
+  }
+}
+
+/* ============================================================
+   11. 悬浮窗
+   ============================================================ */
+function openFloat(mode) {
+  const f = $('#floatWin');
+  f.classList.remove('center', 'dock');
+  f.classList.add(mode, 'open');
+  state.floatOpen = true;
+  $('#restoreFloat').parentElement.classList.remove('show');
+  $('#restoreFloat').style.display = 'none';
+  $('#restoreWrap').classList.toggle('show', $('#restoreBtn').style.display !== 'none');
+}
+function closeFloat() {
+  $('#floatWin').classList.remove('open');
+  state.floatOpen = false;
+  if (state.view === 'float') {
+    $('#restoreFloat').style.display = '';
+    $('#restoreWrap').classList.add('show');
+  }
+}
+
+$('#restoreFloat').style.display = 'none';
+$('#restoreFloat').addEventListener('click', () => {
+  $('#restoreFloat').style.display = 'none';
+  $('#restoreWrap').classList.remove('show');
+  openFloat('center');
+});
+
+function renderFloatList() {
+  const box = $('#floatList');
+  const src = state.floatTab === 'idea' ? [...state.extra.idea, ...DB.idea.slice(0, 2)] : state.extra.todo.length ? state.extra.todo : DB.todo.slice(0, 2);
+  if (!src.length) { box.innerHTML = '<div class="mini-empty">还没有记录</div>'; return; }
+  box.innerHTML = src.map(it => {
+    const primary = state.lang === 'tech' ? it.t : it.p;
+    return `<div class="fli${it.done ? ' done' : ''}">
+      <span class="fl-ic">${SVG(I[it.ic] || I.file, 15, 1.9)}</span>
+      <span class="fl-bd"><span class="fl-t">${primary}</span><span class="fl-m">${it.time || ''} · ${it.src}</span></span>
+    </div>`;
+  }).join('');
+}
+
+function updateVsChip() {
+  const chip = $('#vsChip');
+  chip.classList.toggle('amber', !state.vsConnected);
+  chip.classList.toggle('green', state.vsConnected);
+  $('#vsText').textContent = state.vsConnected ? '已连接 VS' : '未检测到 VS';
+}
+
+$('#floatTabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-ftab]');
+  if (!b) return;
+  state.floatTab = b.dataset.ftab;
+  $$('#floatTabs .ftab').forEach(x => x.classList.toggle('is-on', x === b));
+  renderFloatList();
+});
+
+$('#floatAdd').addEventListener('click', async () => {
+  const b = $('#floatAdd');
+  const inp = $('#floatInput');
+  if (b.classList.contains('is-loading')) return;
+  const text = inp.value.trim();
+  const bd = $('#floatWin');
+  const cur = state.floatTab;
+
+  b.classList.add('is-loading');
+  b.innerHTML = '<span class="spin"></span>';
+  await wait(620);
+
+  const pool = cur === 'idea' ? CAPTURE_POOL : [
+    { ic: 'check', kind: 'brand', t: '复核浮窗的默认高度', p: '再看看浮窗默认多高比较合适', src: '悬浮窗' },
+  ];
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  if (cur === 'idea') {
+    state.extra.idea.unshift({ ...item, t: text || item.t, p: text ? '由你手动输入' : item.p, time: '刚刚', src: text ? '悬浮窗' : '剪贴板' });
+  } else {
+    state.extra.todo.unshift({ ic: 'check', kind: 'brand', t: text || '新待办', p: '由你手动输入', done: false, time: '刚刚', src: '悬浮窗' });
+  }
+  b.classList.remove('is-loading');
+  b.innerHTML = SVG('<path d="M12 5.2v13.6M5.2 12h13.6"/>', 20, 2);
+  inp.value = '';
+  renderAll();
+  toast('已记录到「' + (cur === 'idea' ? '想法' : '待办') + '」');
+});
+
+$('#floatRead').addEventListener('click', async () => {
+  const b = $('#floatRead');
+  const inp = $('#floatInput');
+  if (b.classList.contains('is-loading')) return;
+  const w = b.offsetWidth;
+  b.style.width = w + 'px';
+  b.classList.add('is-loading');
+  b.querySelector('.rd-ic').innerHTML = '<span class="spin brand"></span>';
+  await wait(760);
+  b.classList.remove('is-loading');
+  b.querySelector('.rd-ic').innerHTML = SVG(I.copy, 17, 1.8);
+  inp.value = '浮窗的默认高度想再确认一下，500 还是 520 更合适';
+  inp.focus();
+  toast('已读取当前选区');
+});
+
+$('#askBtn').addEventListener('click', async () => {
+  const inp = $('#askInput');
+  const q = inp.value.trim();
+  if (!q) { toast('先写一个问题', 'info'); return; }
+  inp.value = '';
+  toast('正在检索你的知识库…', 'info');
+  await wait(800);
+  toast('找到 3 条相关内容，已同步到主界面问答');
+});
+
+$('#floatExpand').addEventListener('click', () => {
+  switchView('main');
+  toast('已展开到主界面');
+});
+$('#floatClose').addEventListener('click', closeFloat);
+$('#floatOpenMain').addEventListener('click', () => {
+  closeFloat();
+  switchView('main');
+});
+$('#vsChip').addEventListener('click', async () => {
+  if (state.vsConnected) { toast('Visual Studio 已连接', 'info'); return; }
+  $('#vsText').textContent = '连接中…';
+  await wait(700);
+  state.vsConnected = true;
+  updateVsChip();
+  toast('已连接 Visual Studio');
+  if (state.nav === 'code') { state.fadeIn = true; renderContent(); }
+  renderAll();
+});
+$('#floatWin').addEventListener('click', e => {
+  const t = e.target.closest('[data-tool]');
+  if (t) { toast(`已打开「${t.dataset.tool}」`, 'info'); return; }
+  if (e.target.closest('.fli')) toast('打开详情侧栏 · 待设计', 'info');
+});
+
+/* ============================================================
+   12. 视图切换 + 自适应缩放
+   ============================================================ */
+function switchView(v) {
+  state.view = v;
+  $$('#viewSeg .seg-i').forEach(b => b.classList.toggle('is-on', b.dataset.view === v));
+  const f = $('#floatWin'), slot = $('#slotMain'), main = $('#winMain');
+
+  if (v === 'main') {
+    slot.classList.remove('hide');
+    main.classList.remove('is-compact');
+    if (state.floatOpen) { f.classList.remove('center'); f.classList.add('dock', 'open'); }
+    else f.classList.remove('open');
+    setCap('<b>主界面 · 1200 × 760</b>　点侧栏切页 · 点「快速记录」看完整反馈流程 · 点右上角「AI 问答」唤起悬浮窗');
+  }
+  if (v === 'compact') {
+    slot.classList.remove('hide');
+    main.classList.add('is-compact');
+    f.classList.remove('open');
+    state.floatOpen = false;
+    setCap('<b>紧凑适配 · 900 × 620</b>　侧栏收成 60px 图标轨道，命令栏按钮转图标态，搜索范围下拉隐藏');
+  }
+  if (v === 'float') {
+    slot.classList.add('hide');
+    $('#restoreBtn').style.display = 'none';
+    $('#restoreFloat').style.display = 'none';
+    $('#restoreWrap').classList.remove('show');
+    f.classList.remove('dock');
+    f.classList.add('center', 'open');
+    state.floatOpen = true;
+    setCap('<b>悬浮窗 · 440 × 560</b>　切「想法 / 待办」· 输入后点「+」看按钮 spinner · 点 VS 状态标签可连接');
+  }
+  requestAnimationFrame(fitAll);
+  setTimeout(fitAll, 260);   /* 窗口宽高有 220ms 过渡，过渡结束再量一次 */
+}
+
+function setCap(html) { $('#capText').innerHTML = html; }
+
+function fitAll() {
+  const stage = $('#stage');
+  const main = $('#winMain');
+  /* 主界面：按视口等比缩放，永远完整可见 */
+  const sw = stage.clientWidth - 128;
+  const sh = stage.clientHeight - 96;
+  const s = Math.min(1, sw / main.offsetWidth, sh / main.offsetHeight);
+  main.style.transform = s < 1 ? `scale(${s})` : '';
+
+  /* 悬浮窗：整体套一层缩放，不影响它自身的开合动画 */
+  const fh = 560, fw = 440;
+  const fs = Math.min(1, (stage.clientHeight - 132) / fh, (stage.clientWidth - 96) / fw);
+  $('#floatWrap').style.transform = fs < 1 ? `scale(${fs})` : '';
+}
+
+window.addEventListener('resize', fitAll);
+
+$('#viewSeg').addEventListener('click', e => {
+  const b = e.target.closest('[data-view]');
+  if (b) switchView(b.dataset.view);
+});
+
+$('#ffToggle').addEventListener('change', e => {
+  document.body.classList.toggle('ff', e.target.checked);
+  toast(e.target.checked ? '聚焦环已常显（Tab 可遍历）' : '聚焦环仅在键盘导航时出现', 'info');
+});
+
+$('#playBtn').addEventListener('click', async () => {
+  switchView('main');
+  setNav('all');
+  await wait(320);
+  toast('开始播放：快速记录完整流程', 'info');
+  await wait(420);
+  await captureFlow();
+  await wait(600);
+  toast('流程结束 · 全程无位移，只有颜色与投影在变', 'info');
+});
+
+/* ============================================================
+   13. 启动
+   ============================================================ */
+renderAll();
+updateVsChip();
+switchView('main');
+requestAnimationFrame(() => requestAnimationFrame(fitAll));
+setTimeout(fitAll, 260);
+</script>
+</body>
+</html>

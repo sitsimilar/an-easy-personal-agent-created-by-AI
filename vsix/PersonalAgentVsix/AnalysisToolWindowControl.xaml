@@ -1,0 +1,77 @@
+<UserControl x:Class="PersonalAgentVsix.AnalysisToolWindowControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:conv="clr-namespace:PersonalAgentVsix.Converters"
+             mc:Ignorable="d"
+             d:DesignHeight="480" d:DesignWidth="360">
+    <UserControl.Resources>
+        <conv:SeverityToBrushConverter x:Key="SeverityToBrush" />
+    </UserControl.Resources>
+
+    <DockPanel Margin="8">
+        <!-- 顶栏：标题 + 刷新 + 状态 -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Vertical">
+            <DockPanel>
+                <TextBlock Text="个人信息管家" FontWeight="Bold" FontSize="14" DockPanel.Dock="Left" VerticalAlignment="Center" />
+                <Button x:Name="RefreshButton" Content="刷新" DockPanel.Dock="Right" Padding="10,2" Click="RefreshButton_Click" />
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <RadioButton x:Name="ProRadio" Content="专业版" IsChecked="True" GroupName="Wording" FontSize="11" VerticalAlignment="Center" Checked="Wording_Checked" />
+                    <RadioButton x:Name="PlainRadio" Content="大白话版" GroupName="Wording" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0" Checked="Wording_Checked" />
+                </StackPanel>
+                <TextBlock x:Name="StatusText" DockPanel.Dock="Right" Foreground="Gray" VerticalAlignment="Center" Margin="0,0,10,0" />
+            </DockPanel>
+            <TextBlock x:Name="MetaText" Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,8" />
+        </StackPanel>
+
+        <!-- 内容 -->
+        <Grid>
+            <!-- 空态/错误态 -->
+            <TextBlock x:Name="EmptyText"
+                       Text="暂无分析结果。请在桌面伴侣中完成一次 VS 分析"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Foreground="Gray"
+                       Margin="16" />
+
+            <!-- 结果 -->
+            <Grid x:Name="ResultPanel" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="#F1F2F9" Padding="10" CornerRadius="4" Margin="0,0,0,8">
+                    <TextBlock x:Name="SummaryText" TextWrapping="Wrap" />
+                </Border>
+
+                <ListBox Grid.Row="1" x:Name="IssueList"
+                         BorderThickness="0" Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderThickness="1" BorderBrush="#E5E7EB" CornerRadius="4"
+                                    Padding="10" Margin="0,0,0,6" Cursor="Hand"
+                                    MouseLeftButtonUp="Issue_MouseLeftButtonUp">
+                                <StackPanel>
+                                    <DockPanel>
+                                        <Border Width="4" Height="14" CornerRadius="2"
+                                                Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                DockPanel.Dock="Left" Margin="0,1,6,0" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding SeverityLabel}"
+                                                   Foreground="{Binding Severity, Converter={StaticResource SeverityToBrush}}"
+                                                   FontWeight="Bold" FontSize="11" DockPanel.Dock="Left" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Title}" FontWeight="Bold" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                    <TextBlock Text="{Binding Location}" Foreground="Gray" FontSize="11" Margin="10,3,0,0" />
+                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12" Margin="10,5,0,0" />
+                                    <TextBlock Text="{Binding SuggestionText}" TextWrapping="Wrap" FontSize="12" Foreground="#4F46E5" Margin="10,3,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+    </DockPanel>
+</UserControl>

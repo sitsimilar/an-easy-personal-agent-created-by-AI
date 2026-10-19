@@ -1,0 +1,30 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+dist-*/
+out/
+qa/ux-shots/
+*.log
+
+# 环境变量（含云服务密钥，仅提交 *.example 模板）
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# 内部 E2E/UX 探测脚本（含真实会话 key / 实例域名，不对外发布）
+qa/ux-*.cjs
+qa/ux-*.mjs
+
+# WorkBuddy 应用标记文件
+*.genie
+
+# 编辑器 / 系统 / 工具本地数据
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+.workbuddy/

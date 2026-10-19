@@ -1,0 +1,114 @@
+classDiagram
+    class InfoRecord {
+        +number id
+        +string type
+        +string title
+        +string content
+        +string url
+        +string filePath
+        +string category
+        +string[] tags
+        +string summary
+        +string todoStatus
+        +string priority
+        +string remindAt
+        +boolean isDeleted
+        +string deletedAt
+        +string createdAt
+        +string updatedAt
+    }
+    class RecordLink {
+        +number id
+        +number sourceId
+        +number targetId
+        +number score
+        +string reason
+    }
+    class CodeAnalysis {
+        +number id
+        +string solutionName
+        +string solutionPath
+        +string projectName
+        +CodeIssue[] issues
+        +string summary
+        +string status
+        +string createdAt
+    }
+    class CodeIssue {
+        +string severity
+        +string title
+        +string description
+        +string suggestion
+        +string file
+        +number line
+    }
+    class QaSession {
+        +number id
+        +string title
+        +string createdAt
+    }
+    class ChatMessage {
+        +number id
+        +number sessionId
+        +string role
+        +string content
+        +number[] sources
+        +string createdAt
+    }
+    class UserSettings {
+        +string vsPath
+        +boolean codeUploadEnabled
+        +boolean floatWindowEnabled
+        +object floatPosition
+        +boolean notifyEnabled
+    }
+    class AuthService {
+        +sendPhoneCode(phone)
+        +submitPhoneLogin(phone, code)
+        +getSession()
+        +signOut()
+        +onAuthStateChange(cb)
+        +startWechatLogin()
+    }
+    class RecordService {
+        +createRecord(input)
+        +listRecords(filter)
+        +search(keyword, filter)
+        +updateRecord(id, patch)
+        +softDelete(id)
+        +restore(id)
+        +updateTodoStatus(id, status)
+        +searchCandidates(keyword, k)
+    }
+    class AiService {
+        +classify(content)
+        +summarize(content)
+        +relate(target, candidates)
+        +answer(question, context)
+        +analyzeCode(solutionName, files)
+        +enrichRecord(id, content)
+    }
+    class AnalysisService {
+        +save(analysis)
+        +list(filter)
+        +get(id)
+    }
+    class QaService {
+        +ask(question)
+        +history(sessionId)
+    }
+    class StorageService {
+        +uploadMaterial(file)
+        +getSignedUrl(path)
+        +remove(path)
+    }
+
+    RecordService --> InfoRecord : 读写
+    AiService --> RecordLink : 生成关联
+    AiService --> InfoRecord : 回写分类/摘要
+    AnalysisService --> CodeAnalysis : 读写
+    CodeAnalysis --> CodeIssue : 包含
+    QaService --> QaSession : 读写
+    QaService --> ChatMessage : 读写
+    InfoRecord "1" --> "*" RecordLink : 被关联
+    StorageService --> InfoRecord : 写 file_path
