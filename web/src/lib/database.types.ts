@@ -74,6 +74,22 @@ export interface ImagesRow {
   updated_at: string
 }
 
+export interface PluginsRow {
+  id: number
+  owner_id: string
+  plugin_id: string
+  name: string
+  version: string
+  description: string
+  author: string | null
+  repo_url: string | null
+  permissions: string[]
+  entry_path: string
+  enabled: boolean
+  installed_at: string
+  updated_at: string
+}
+
 interface TableDef<Row> {
   Row: Row
   Insert: Record<string, unknown>
@@ -88,6 +104,7 @@ export interface Database {
     code_analyses: TableDef<CodeAnalysesRow>
     settings: TableDef<SettingsRow>
     images: TableDef<ImagesRow>
+    plugins: TableDef<PluginsRow>
   }
   Views: Record<string, never>
   Functions: Record<string, never>

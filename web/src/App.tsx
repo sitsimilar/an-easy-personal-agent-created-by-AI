@@ -15,6 +15,7 @@ import ReviewPage from './pages/ReviewPage'
 import SettingsPage from './pages/SettingsPage'
 import RecyclePage from './pages/RecyclePage'
 import DevToolsPage from './pages/DevToolsPage'
+import PluginsPage from './pages/PluginsPage'
 import { warmup } from './services/aiService'
 import { checkForUpdate, type CheckResult } from './services/updateService'
 import { UPDATE_CHECK_INTERVAL_MS } from '@shared/config/version'
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="/mindtree" element={<MindTreePage />} />
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/tools" element={<DevToolsPage />} />
+          <Route path="/plugins" element={<PluginsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/recycle" element={<RecyclePage />} />
         </Route>

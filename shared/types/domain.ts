@@ -292,3 +292,32 @@ export interface MindForestStore {
   forests: MindForest[]
   crossLinks: CrossLink[]
 }
+
+/** 插件（camelCase 领域类型，service 层从 PluginsRow 映射）。 */
+export interface Plugin {
+  id: number
+  pluginId: string
+  name: string
+  version: string
+  description: string
+  author?: string | null
+  repoUrl?: string | null
+  permissions: string[]
+  entryPath: string
+  enabled: boolean
+  installedAt: string
+  updatedAt: string
+}
+
+/** 插件安装入参（manifest 校验后 + 拉取到的入口源码）。 */
+export interface PluginInstallInput {
+  pluginId: string
+  name: string
+  version: string
+  description: string
+  author?: string | null
+  repoUrl?: string | null
+  permissions: string[]
+  /** 入口源码（单文件自包含 ESM，安装时上传到云 storage）。 */
+  sourceCode: string
+}

@@ -137,13 +137,36 @@ CREATE TABLE IF NOT EXISTS public.images (
 CREATE INDEX IF NOT EXISTS images_owner_created_idx ON public.images (owner_id, created_at DESC);
 
 -- ---------------------------------------------------------------------------
+-- 8. plugins —— 插件元数据（代码包存云 storage，entry_path 关联）
+--     owner_id + plugin_id 唯一；permissions 为权限声明 token 数组
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.plugins (
+  id           BIGINT       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id     TEXT         NOT NULL DEFAULT auth.uid(),
+  plugin_id    TEXT         NOT NULL,                 -- manifest 里的 id，如 com.example.demo
+  name         TEXT         NOT NULL,
+  version      TEXT         NOT NULL,                 -- semver，如 1.0.0
+  description  TEXT         NOT NULL DEFAULT '',
+  author       TEXT,
+  repo_url     TEXT,                                   -- GitHub 仓库地址（安装来源）
+  permissions  TEXT[]       NOT NULL DEFAULT '{}',     -- 权限声明 token 数组
+  entry_path   TEXT         NOT NULL,                  -- storage 代码包路径（含版本）
+  enabled      BOOLEAN      NOT NULL DEFAULT false,
+  installed_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS plugins_owner_plugin_uniq ON public.plugins (owner_id, plugin_id);
+CREATE INDEX IF NOT EXISTS plugins_owner_created_idx ON public.plugins (owner_id, installed_at DESC);
+
+-- ---------------------------------------------------------------------------
 -- 6. RLS 策略（每张表同构执行）
 -- ---------------------------------------------------------------------------
 DO $$
 DECLARE
   t TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['records','record_links','code_analyses','qa_sessions','chat_messages','settings','images']
+  FOREACH t IN ARRAY ARRAY['records','record_links','code_analyses','qa_sessions','chat_messages','settings','images','plugins']
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO authenticated, anon', t);

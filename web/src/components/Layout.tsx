@@ -33,6 +33,7 @@ import LogoutIcon from '@mui/icons-material/Logout'
 import ExpandLessIcon from '@mui/icons-material/ExpandLess'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import DownloadIcon from '@mui/icons-material/Download'
+import ExtensionIcon from '@mui/icons-material/Extension'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore, useCurrentUser } from '@/store/authStore'
 import { useRecordStore } from '@/store/recordStore'
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: '系统',
     items: [
+      { label: '插件', path: '/plugins', icon: <ExtensionIcon fontSize="small" /> },
       { label: '回收站', path: '/recycle', icon: <DeleteIcon fontSize="small" /> },
       { label: '设置', path: '/settings', icon: <SettingsIcon fontSize="small" /> },
     ],
