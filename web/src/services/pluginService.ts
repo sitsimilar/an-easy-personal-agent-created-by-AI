@@ -117,10 +117,10 @@ export const pluginService = {
       unwrap(await cloud.storage.upload(entryPath, blob, { contentType: 'text/javascript' }))
 
       if (existing) {
-        // 重装 = 覆盖更新：update 行；若换版本路径则删除旧对象
+        // 重装 = 覆盖更新：回填新 entry_path；若换版本路径则删除旧对象
         const { data, error } = await cloud.database
           .from('plugins')
-          .update(toSnake(input))
+          .update({ ...toSnake(input), entry_path: entryPath })
           .eq('id', existing.id)
           .select()
         const rows = unwrap({ data, error }) as PluginsRow[] | null

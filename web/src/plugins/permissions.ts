@@ -22,9 +22,13 @@ export function filterPermissions(
   const src = Array.isArray(list) ? list : []
   const kept: string[] = []
   const removed: string[] = []
-  for (const token of src) {
-    if ((KNOWN_PERMISSIONS as readonly string[]).includes(token)) kept.push(token)
-    else removed.push(token)
+  for (const raw of src) {
+    const token = typeof raw === 'string' ? raw.trim() : ''
+    if (token && (KNOWN_PERMISSIONS as readonly string[]).includes(token)) {
+      kept.push(token)
+    } else {
+      removed.push(raw)
+    }
   }
   return { kept, removed }
 }

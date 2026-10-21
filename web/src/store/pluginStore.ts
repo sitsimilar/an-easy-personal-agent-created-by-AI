@@ -54,8 +54,9 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     }
   },
 
-  /** 启动恢复（§6.3）：逐个 activate enabled=true 的插件，任一失败仅标记 error，继续其余。 */
+  /** 启动恢复（§6.3）：先拉列表，再逐个 activate enabled=true 的插件；任一失败仅标记 error，继续其余。 */
   restore: async () => {
+    await get().load()
     const enabled = get().plugins.filter((p) => p.enabled)
     for (const p of enabled) {
       await pluginRegistry.activate(p)

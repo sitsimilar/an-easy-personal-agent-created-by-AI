@@ -48,11 +48,22 @@ async function bootstrap(): Promise<void> {
     }
 
     // 2. 恢复会话
+    let session: Awaited<ReturnType<typeof authService.getSession>> = null
     try {
-      const session = await authService.getSession()
+      session = await authService.getSession()
       useAuthStore.getState().setSession(session)
     } catch {
       useAuthStore.getState().setSession(null)
+    }
+
+    // 3. 启动恢复：会话存在时恢复 enabled 插件（失败不阻断启动）
+    if (session) {
+      try {
+        const { usePluginStore } = await import('./store/pluginStore')
+        await usePluginStore.getState().restore()
+      } catch {
+        console.warn('[plugins] 启动恢复插件失败（不阻断启动）')
+      }
     }
 
     useAuthStore.getState().setInitialized(true)

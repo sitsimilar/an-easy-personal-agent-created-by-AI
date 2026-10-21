@@ -56,13 +56,9 @@ export default function PluginsPage() {
   const [busy, setBusy] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
-    // 挂载：先拉列表，再逐个激活 enabled=true 的插件（启动恢复 §6.3）
-    const run = async () => {
-      await load()
-      await restore()
-    }
-    run()
-  }, [load, restore])
+    // 挂载：restore 内部会先拉列表，再逐个激活 enabled=true 的插件（启动恢复 §6.3）
+    restore()
+  }, [restore])
 
   const setBusyFor = (id: number, v: boolean) => setBusy((b) => ({ ...b, [id]: v }))
 
