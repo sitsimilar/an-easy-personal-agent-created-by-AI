@@ -127,8 +127,15 @@ const CppCheatEntryCard = memo(
     prev.entry.id === next.entry.id && prev.open === next.open && prev.copied === next.copied,
 )
 
-/** C++ 速查库面板：语法/标准库/常用算法/内存管理/常见陷阱，支持分类、搜索、复制、分页。 */
-export default function CppCheatSheetPanel() {
+/** C++ 速查库面板：覆盖基础语法到现代 C++，支持分类、搜索、复制、分页与条目定位。 */
+interface CppCheatSheetPanelProps {
+  /** 外部请求定位到某个条目（如代码生成点击知识点跳转）。 */
+  focusEntryId?: string | null
+  /** 定位处理完成后回调（用于清空 focusEntryId，避免重复触发）。 */
+  onFocusConsumed?: () => void
+}
+
+export default function CppCheatSheetPanel({ focusEntryId, onFocusConsumed }: CppCheatSheetPanelProps) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<CategoryFilter>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -151,6 +158,22 @@ export default function CppCheatSheetPanel() {
     setVisible(PAGE_SIZE)
   }, [query, category])
 
+  // 外部定位：清过滤 → 展开 → 滚动到目标条目
+  useEffect(() => {
+    if (!focusEntryId) return
+    const idx = CPP_CHEAT_ENTRIES.findIndex((e) => e.id === focusEntryId)
+    if (idx < 0) return
+    setQuery('')
+    setCategory('all')
+    setVisible((v) => Math.max(v, idx + 1))
+    setExpanded(focusEntryId)
+    const timer = window.setTimeout(() => {
+      entryRefs.current[focusEntryId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      onFocusConsumed?.()
+    }, 150)
+    return () => window.clearTimeout(timer)
+  }, [focusEntryId, onFocusConsumed])
+
   const shown = entries.slice(0, visible)
   const remaining = entries.length - shown.length
 
@@ -164,11 +187,9 @@ export default function CppCheatSheetPanel() {
 
   const categoryChips: Array<{ key: CategoryFilter; label: string }> = [
     { key: 'all', label: '全部' },
-    { key: 'syntax', label: '语法' },
-    { key: 'stl', label: '标准库' },
-    { key: 'algorithm', label: '常用算法' },
-    { key: 'memory', label: '内存管理' },
-    { key: 'pitfall', label: '常见陷阱' },
+    ...(Object.entries(CPP_CHEAT_CATEGORY_META) as Array<[CppCheatCategory, { label: string }]>).map(
+      ([key, meta]) => ({ key, label: meta.label }),
+    ),
   ]
 
   return (

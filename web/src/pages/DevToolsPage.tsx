@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Box,
   Button,
@@ -17,9 +17,9 @@ import MenuBookIcon from '@mui/icons-material/MenuBook'
 import TerminalIcon from '@mui/icons-material/Terminal'
 import UploadIcon from '@mui/icons-material/Upload'
 import { useSearchParams } from 'react-router-dom'
-import type { SelectionAnalysisResult } from '@shared/types/domain'
 import { aiService } from '@/services/aiService'
 import { friendlyError } from '@/lib/unwrap'
+import { useDevToolsStore } from '@/store/devToolsStore'
 import SelectionAnalysisCard from '@/components/SelectionAnalysisCard'
 import CheatSheetPanel from '@/components/CheatSheetPanel'
 import CppCheatSheetPanel from '@/components/CppCheatSheetPanel'
@@ -28,10 +28,11 @@ import IdePanel from '@/components/IdePanel'
 import ScreenshotPanel from '@/components/ScreenshotPanel'
 import PageHeader from '@/components/PageHeader'
 
-/** 读取选区（仅桌面环境可用）。 */
+/** 读取选区（仅桌面环境可用）。结果持久化，切换工具后返回不丢失。 */
 function SelectionSection() {
   const bridge = typeof window !== 'undefined' ? window.desktopBridge : undefined
-  const [selection, setSelection] = useState<SelectionAnalysisResult | null>(null)
+  const selection = useDevToolsStore((s) => s.selectionResult)
+  const setSelection = useDevToolsStore((s) => s.setSelectionResult)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const selectionKey = useRef<string | null>(null)
@@ -57,8 +58,7 @@ function SelectionSection() {
     } finally {
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridge])
+  }, [bridge, setSelection])
 
   if (!bridge) {
     return (
@@ -108,14 +108,13 @@ function SelectionSection() {
 interface ToolItem {
   id: string
   label: string
-  icon: React.ReactNode
-  node: React.ReactNode
+  icon: ReactNode
 }
 
 /** 工具箱一级分类。 */
 interface ToolGroup {
   title: string
-  icon: React.ReactNode
+  icon: ReactNode
   items: ToolItem[]
 }
 
@@ -125,24 +124,24 @@ const TOOL_GROUPS: ToolGroup[] = [
     title: '代码辅助',
     icon: <CodeIcon fontSize="small" />,
     items: [
-      { id: 'selection', label: '读取选区', icon: <ContentCopyIcon fontSize="small" />, node: <SelectionSection /> },
-      { id: 'codegen', label: '代码生成', icon: <CodeIcon fontSize="small" />, node: <CodeGenPanel /> },
-      { id: 'ide', label: 'IDE 模式', icon: <TerminalIcon fontSize="small" />, node: <IdePanel /> },
+      { id: 'selection', label: '读取选区', icon: <ContentCopyIcon fontSize="small" /> },
+      { id: 'codegen', label: '代码生成', icon: <CodeIcon fontSize="small" /> },
+      { id: 'ide', label: 'IDE 模式', icon: <TerminalIcon fontSize="small" /> },
     ],
   },
   {
     title: '速查参考',
     icon: <MenuBookIcon fontSize="small" />,
     items: [
-      { id: 'cheatsheet-cs', label: 'C# 速查库', icon: <MenuBookIcon fontSize="small" />, node: <CheatSheetPanel /> },
-      { id: 'cheatsheet-cpp', label: 'C++ 速查库', icon: <MenuBookIcon fontSize="small" />, node: <CppCheatSheetPanel /> },
+      { id: 'cheatsheet-cs', label: 'C# 速查库', icon: <MenuBookIcon fontSize="small" /> },
+      { id: 'cheatsheet-cpp', label: 'C++ 速查库', icon: <MenuBookIcon fontSize="small" /> },
     ],
   },
   {
     title: '识别提取',
     icon: <UploadIcon fontSize="small" />,
     items: [
-      { id: 'screenshot', label: '截图识别', icon: <UploadIcon fontSize="small" />, node: <ScreenshotPanel /> },
+      { id: 'screenshot', label: '截图识别', icon: <UploadIcon fontSize="small" /> },
     ],
   },
 ]
@@ -153,6 +152,7 @@ const ALL_TOOLS: ToolItem[] = TOOL_GROUPS.flatMap((g) => g.items)
 /** 开发者工具箱：左侧分类目录 + 右侧功能面板，点击目录切换功能区。 */
 export default function DevToolsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [focusEntryId, setFocusEntryId] = useState<string | null>(null)
 
   const initialId = searchParams.get('tool')
   const initialIndex = initialId ? ALL_TOOLS.findIndex((t) => t.id === initialId) : -1
@@ -165,6 +165,33 @@ export default function DevToolsPage() {
     // 深链：写入 ?tool= 便于刷新/分享/历史返回
     setSearchParams({ tool: id }, { replace: false })
   }
+
+  // 代码生成知识点 → 跳转到 C++ 速查库并定位到对应条目
+  const openEntry = useCallback(
+    (id: string) => {
+      setActiveId('cheatsheet-cpp')
+      setSearchParams({ tool: 'cheatsheet-cpp' }, { replace: false })
+      setFocusEntryId(id)
+    },
+    [setSearchParams],
+  )
+
+  const onFocusConsumed = useCallback(() => setFocusEntryId(null), [])
+
+  // 工具面板（含回调 / 定位 props）
+  const toolNodes = useMemo<Record<string, ReactNode>>(
+    () => ({
+      selection: <SelectionSection />,
+      codegen: <CodeGenPanel onOpenEntry={openEntry} />,
+      ide: <IdePanel />,
+      'cheatsheet-cs': <CheatSheetPanel />,
+      'cheatsheet-cpp': (
+        <CppCheatSheetPanel focusEntryId={focusEntryId} onFocusConsumed={onFocusConsumed} />
+      ),
+      screenshot: <ScreenshotPanel />,
+    }),
+    [openEntry, onFocusConsumed, focusEntryId],
+  )
 
   return (
     <Box sx={{ p: 3, maxWidth: 1100, mx: 'auto' }}>
@@ -205,7 +232,7 @@ export default function DevToolsPage() {
         {/* 右侧功能面板（以 tool id 为 key 触发切换转场） */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box key={activeTool.id} className="panel-in">
-            {activeTool.node}
+            {toolNodes[activeTool.id]}
           </Box>
         </Box>
       </Stack>

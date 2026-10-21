@@ -162,8 +162,18 @@ export interface TodoOrganizeResult {
 /** 速查库条目类别：关键字 / 运算符 / 函数 / 语法结构。 */
 export type CheatCategory = 'keyword' | 'operator' | 'function' | 'syntax'
 
-/** C++ 速查库条目类别：语法 / 标准库 / 常用算法 / 内存管理 / 常见陷阱。 */
-export type CppCheatCategory = 'syntax' | 'stl' | 'algorithm' | 'memory' | 'pitfall'
+/** C++ 速查库条目类别：基础语法 / 标准库组件与容器 / STL 算法 / 内存与智能指针 / 移动语义 / Lambda / 模板泛型 / 并发多线程 / 现代 C++ 特性 / 常见陷阱。 */
+export type CppCheatCategory =
+  | 'syntax'
+  | 'stl'
+  | 'algorithm'
+  | 'memory'
+  | 'move'
+  | 'lambda'
+  | 'template'
+  | 'concurrency'
+  | 'modern'
+  | 'pitfall'
 
 /** 速查库单条条目（结构化，便于维护与扩展）。 */
 export interface CheatEntry {

@@ -10,10 +10,10 @@ import {
 } from '@mui/material'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import type { CheatEntry } from '@shared/types/domain'
-import { CHEAT_CATEGORY_META, matchKnowledgePoints } from '@shared/constants/cheatsheet'
+import { CPP_CHEAT_CATEGORY_META, matchCppKnowledgePoints } from '@shared/constants/cpp-cheatsheet'
 import { aiService } from '@/services/aiService'
 import { friendlyError } from '@/lib/unwrap'
+import { useDevToolsStore } from '@/store/devToolsStore'
 import { MONO_FONT } from '@/theme'
 
 interface CodeGenPanelProps {
@@ -21,31 +21,34 @@ interface CodeGenPanelProps {
   onOpenEntry?: (id: string) => void
 }
 
-/** 自然语言需求 → 生成完整 C++ 代码 + 关联知识点。 */
+/** 自然语言需求 → 生成完整 C++ 代码 + 关联知识点（结果持久化，切换界面不丢失）。 */
 export default function CodeGenPanel({ onOpenEntry }: CodeGenPanelProps) {
-  const [requirement, setRequirement] = useState('')
-  const [code, setCode] = useState('')
+  const codeGenResult = useDevToolsStore((s) => s.codeGenResult)
+  const setCodeGenResult = useDevToolsStore((s) => s.setCodeGenResult)
+
+  // 输入框本地态（生成后随结果一并持久化）；生成代码与知识点从 store 恢复
+  const [requirement, setRequirement] = useState(codeGenResult?.requirement ?? '')
   const [streamCode, setStreamCode] = useState('')
-  const [points, setPoints] = useState<CheatEntry[]>([])
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+
+  const code = codeGenResult?.code ?? ''
+  const points = codeGenResult?.points ?? []
 
   const generate = async () => {
     const req = requirement.trim()
     if (!req || generating) return
     setGenerating(true)
     setError('')
-    setCode('')
     setStreamCode('')
-    setPoints([])
+    setCodeGenResult(null)
     try {
       const c = await aiService.generateCode(req, {
         onDelta: (t) => setStreamCode((prev) => prev + t),
       })
-      setCode(c)
       setStreamCode('')
-      setPoints(matchKnowledgePoints(c))
+      setCodeGenResult({ requirement: req, code: c, points: matchCppKnowledgePoints(c) })
     } catch (err) {
       setError(friendlyError(err))
       setStreamCode('')
@@ -161,7 +164,7 @@ export default function CodeGenPanel({ onOpenEntry }: CodeGenPanelProps) {
                   <Chip
                     key={p.id}
                     size="small"
-                    label={`${CHEAT_CATEGORY_META[p.category].label}·${p.name}`}
+                    label={`${CPP_CHEAT_CATEGORY_META[p.category].label}·${p.name}`}
                     onClick={() => onOpenEntry?.(p.id)}
                     sx={{ fontSize: 11, height: 22, cursor: 'pointer' }}
                   />
