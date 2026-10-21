@@ -162,7 +162,7 @@ export interface TodoOrganizeResult {
 /** 速查库条目类别：关键字 / 运算符 / 函数 / 语法结构。 */
 export type CheatCategory = 'keyword' | 'operator' | 'function' | 'syntax'
 
-/** C++ 速查库条目类别：基础语法 / 标准库组件与容器 / STL 算法 / 内存与智能指针 / 移动语义 / Lambda / 模板泛型 / 并发多线程 / 现代 C++ 特性 / 常见陷阱。 */
+/** C++ 速查库条目类别：基础语法 / 标准库组件与容器 / STL 算法 / 内存与智能指针 / 移动语义 / Lambda / 模板泛型 / 并发多线程 / 现代 C++ 特性 / 标准库函数 / 常见陷阱。 */
 export type CppCheatCategory =
   | 'syntax'
   | 'stl'
@@ -173,6 +173,7 @@ export type CppCheatCategory =
   | 'template'
   | 'concurrency'
   | 'modern'
+  | 'function'
   | 'pitfall'
 
 /** 速查库单条条目（结构化，便于维护与扩展）。 */
@@ -198,12 +199,12 @@ export interface CheatEntry {
 export interface CppCheatEntry {
   /** 唯一标识（稳定，勿改动）。 */
   id: string
-  /** 名称（语法/库/算法/概念名）。 */
+  /** 名称（语法/库/算法/概念/函数名）。 */
   name: string
   category: CppCheatCategory
   /** 用途说明。 */
   description: string
-  /** 语法格式。 */
+  /** 语法格式（或函数签名 / 引入方式）。 */
   syntax: string
   /** 使用示例。 */
   example: string
@@ -211,6 +212,12 @@ export interface CppCheatEntry {
   notes?: string
   /** 附加搜索关键词（可选）。 */
   tags?: string[]
+  /** 所在头文件（可选，如 <iomanip>）。 */
+  header?: string
+  /** 参数含义说明（可选）。 */
+  params?: string
+  /** 返回值说明（可选）。 */
+  returns?: string
 }
 
 /** 思维树维度 key。 */

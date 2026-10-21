@@ -110,7 +110,18 @@ const CppCheatEntryCard = memo(
 
           <Collapse in={open} timeout="auto" unmountOnExit>
             <Stack spacing={0.5} sx={{ pt: 0.5 }}>
+              {entry.header && (
+                <Typography
+                  variant="caption"
+                  component="div"
+                  sx={{ fontFamily: MONO_FONT, color: 'primary.main' }}
+                >
+                  #include {entry.header}
+                </Typography>
+              )}
               <CppCodeBlock label="语法" text={entry.syntax} onCopy={copyText} />
+              {entry.params && <InfoLine label="参数" text={entry.params} />}
+              {entry.returns && <InfoLine label="返回" text={entry.returns} />}
               <CppCodeBlock label="示例" text={entry.example} onCopy={copyText} />
               {entry.notes && (
                 <Typography variant="caption" sx={{ color: 'warning.dark' }}>
@@ -259,6 +270,24 @@ export default function CppCheatSheetPanel({ focusEntryId, onFocusConsumed }: Cp
         </>
       )}
     </Box>
+  )
+}
+
+/** 参数 / 返回值说明行（标签 + 正文）。 */
+function InfoLine({ label, text }: { label: string; text: string }) {
+  return (
+    <Typography variant="caption" component="div">
+      <Typography
+        variant="caption"
+        component="span"
+        fontWeight={600}
+        color="text.secondary"
+        sx={{ mr: 0.5 }}
+      >
+        {label}：
+      </Typography>
+      {text}
+    </Typography>
   )
 }
 
