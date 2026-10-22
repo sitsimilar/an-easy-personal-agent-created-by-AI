@@ -25,6 +25,7 @@ import FolderIcon from '@mui/icons-material/Folder'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import AccountTreeIcon from '@mui/icons-material/AccountTree'
 import InsightsIcon from '@mui/icons-material/Insights'
+import TrackChangesIcon from '@mui/icons-material/TrackChanges'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import HandymanIcon from '@mui/icons-material/Handyman'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -77,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: '待办', path: '/todo', icon: <CheckCircleIcon fontSize="small" />, countKey: 'todoPending' },
       { label: '日历', path: '/calendar', icon: <CalendarMonthIcon fontSize="small" /> },
       { label: '回顾', path: '/review', icon: <InsightsIcon fontSize="small" /> },
+      { label: '学习目标', path: '/learning-goal', icon: <TrackChangesIcon fontSize="small" /> },
     ],
   },
   {

@@ -16,6 +16,7 @@ import SettingsPage from './pages/SettingsPage'
 import RecyclePage from './pages/RecyclePage'
 import DevToolsPage from './pages/DevToolsPage'
 import PluginsPage from './pages/PluginsPage'
+import LearningGoalPage from './pages/LearningGoalPage'
 import { warmup } from './services/aiService'
 import { checkForUpdate, type CheckResult } from './services/updateService'
 import { UPDATE_CHECK_INTERVAL_MS } from '@shared/config/version'
@@ -112,6 +113,7 @@ export default function App() {
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/tools" element={<DevToolsPage />} />
           <Route path="/plugins" element={<PluginsPage />} />
+          <Route path="/learning-goal" element={<LearningGoalPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/recycle" element={<RecyclePage />} />
         </Route>
