@@ -8,8 +8,11 @@ files:
   - package.json
 asar: true
 # 运行时窗口/托盘图标（打包后经 process.resourcesPath 读取）
+# 注意：from 含子目录会连目录一起复制（变成 resources/build/icon.png），
+# 而代码读的是 resources/icon.png，故必须显式指定 to 平铺到 resources 根。
 extraResources:
-  - build/icon.png
+  - from: build/icon.png
+    to: icon.png
 win:
   target:
     - nsis

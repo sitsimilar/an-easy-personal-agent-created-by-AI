@@ -1,4 +1,12 @@
 import { app } from 'electron'
+
+// ⚠️ 必须在 app ready 之前、且先于其他任何 app 调用：
+// 本机安全软件（火绒等）向 Chromium 子进程注入 DLL，GPU/渲染进程在沙箱内
+// 启动即崩（0xC0000005），主进程报 "GPU process isn't usable. Goodbye." 整体退出。
+// 关闭 Chromium 沙箱规避（2026-10-22 实测 --no-sandbox 可常驻，GPU 加速可用；
+// 仅 --disable-gpu-sandbox 不够，渲染进程同样崩）。
+app.commandLine.appendSwitch('no-sandbox')
+
 import { VsMonitor, detectVsInstalled } from './vs-monitor'
 import { AnalysisOrchestrator } from './analysis-orchestrator'
 import { store } from './store'
