@@ -22,5 +22,12 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: 个人信息管家
+  # 安装包自身的图标。win.icon 与这三项走的是不同通道：
+  # win.icon / rcedit 改的是 exe 内嵌资源，被 signAndEditExecutable:false 关闭了；
+  # 下面三项由 makensis 直接写入安装/卸载程序的资源段，不需要 winCodeSign，
+  # 所以能生效。不配的话安装包会退回 NSIS 默认图标。
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
   # 卸载时保留 userData（用户数据不被误删，由「一键删除」功能显式清理）
   deleteAppDataOnUninstall: false
