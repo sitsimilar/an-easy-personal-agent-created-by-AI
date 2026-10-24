@@ -47,6 +47,7 @@ const targets = [
   { entry: 'qa/mindtree.test.ts', out: 'qa/dist/mindtree.test.cjs', alias: webAlias },
   { entry: 'qa/mindforest-store.test.ts', out: 'qa/dist/mindforest-store.test.cjs', alias: webAlias },
   { entry: 'qa/mindforest-cross.test.ts', out: 'qa/dist/mindforest-cross.test.cjs', alias: webAlias },
+  { entry: 'qa/mindforest-cloud.test.ts', out: 'qa/dist/mindforest-cloud.test.cjs', alias: webAlias },
   { entry: 'qa/errors.test.ts', out: 'qa/dist/errors.test.cjs', alias: {} },
   { entry: 'qa/update-service.test.ts', out: 'qa/dist/update-service.test.cjs', alias: webAlias },
   { entry: 'qa/image-service.test.ts', out: 'qa/dist/image-service.test.cjs', alias: webAlias },

@@ -90,6 +90,14 @@ export interface PluginsRow {
   updated_at: string
 }
 
+export interface MindTreesRow {
+  id: number
+  owner_id: string
+  /** 整份思维树林文档（MindForestStore 序列化），JSONB。 */
+  payload: unknown
+  updated_at: string
+}
+
 interface TableDef<Row> {
   Row: Row
   Insert: Record<string, unknown>
@@ -105,6 +113,7 @@ export interface Database {
     settings: TableDef<SettingsRow>
     images: TableDef<ImagesRow>
     plugins: TableDef<PluginsRow>
+    mind_trees: TableDef<MindTreesRow>
   }
   Views: Record<string, never>
   Functions: Record<string, never>

@@ -18,6 +18,13 @@ test('isAuthExpired：识别多种 401/凭证失效结构', () => {
   assert.equal(isAuthExpired({ code: '401' }), true)
   assert.equal(isAuthExpired({ code: 'invalid_jwt' }), true)
   assert.equal(isAuthExpired({ code: 'session_not_found' }), true)
+  // 云 SDK 归一化 CloudError 的真实失效信号（shouldClearCredentials 同源判定）
+  assert.equal(isAuthExpired({ code: 'invalid_grant' }), true)
+  assert.equal(isAuthExpired({ kind: 'unauthenticated', status: 401, code: 'invalid_grant' }), true)
+  assert.equal(isAuthExpired({ status: '401' }), true)
+  // 上游 OAuth2 原始错误体（SDK cause 原样保留）
+  assert.equal(isAuthExpired({ code: undefined, cause: { error: 'invalid_grant' } }), true)
+  assert.equal(isAuthExpired({ cause: { error: 'invalid_request' } }), false)
   // 仅结构化字段判定，不依赖 message 正则（第三方合法文案含 "expired"/"401" 不应误判登出）
   assert.equal(isAuthExpired({ message: 'JWT expired at 2026-01-01' }), false)
   assert.equal(isAuthExpired({ message: 'token invalid' }), false)

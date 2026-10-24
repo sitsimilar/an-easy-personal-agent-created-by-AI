@@ -51,20 +51,30 @@ function readKind(err: unknown): string {
 /** 错误大类（用于差异化文案与跳转决策）。 */
 export type ErrorClass = 'auth' | 'network' | 'server' | 'validation' | 'unknown'
 
-/** 识别「会话/凭证已失效」错误：兼容 SDK 多种 401 结构。 */
+/**
+ * 识别「会话/凭证已失效」错误：兼容云 SDK 归一化 CloudError
+ * （kind: 'unauthenticated' / status: 401 / code: 'invalid_grant'）与其它常见 401 结构。
+ * 仅依据结构化字段判定，不匹配 message 文本（避免第三方合法文案误触发登出）。
+ */
 export function isAuthExpired(err: unknown): boolean {
   if (!err) return false
   const e = err as {
     kind?: string
-    status?: number
-    statusCode?: number
-    httpStatus?: number
+    status?: number | string
+    statusCode?: number | string
+    httpStatus?: number | string
     code?: string
     message?: string
+    cause?: unknown
   }
   if (e.kind === 'unauthenticated') return true
-  if (e.status === 401 || e.statusCode === 401 || e.httpStatus === 401) return true
-  if (e.code === '401' || e.code === 'invalid_jwt' || e.code === 'session_not_found') return true
+  if (Number(e.status) === 401 || Number(e.statusCode) === 401 || Number(e.httpStatus) === 401) return true
+  if (e.code === '401' || e.code === 'invalid_jwt' || e.code === 'session_not_found' || e.code === 'invalid_grant') {
+    return true
+  }
+  // 兼容上游 OAuth2 原始错误体（SDK cause 原样保留）：{ error: 'invalid_grant', ... }
+  const cause = e.cause as { error?: unknown } | undefined
+  if (cause?.error === 'invalid_grant') return true
   return false
 }
 

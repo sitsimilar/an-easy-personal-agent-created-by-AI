@@ -24,8 +24,11 @@ export const MIND_FOREST_STORAGE_KEY = 'personal-agent.mindforest.v1'
 /** legacy 单树存储键（仅迁移时读）。 */
 const LEGACY_MIND_TREE_KEY = 'personal-agent.mindtree.v1'
 
-/** 非法树林数据备份键。 */
+/** 非法树林数据备份键（导入覆盖前也会备份到此处）。 */
 const BACKUP_KEY = `${MIND_FOREST_STORAGE_KEY}.bak`
+
+/** 云端同步标记键：记录「本浏览器是否已与云端同步过」（区分新设备/清缓存 vs 用户主动清空）。 */
+const CLOUD_SYNC_KEY = `${MIND_FOREST_STORAGE_KEY}.cloud`
 
 let seq = 0
 
@@ -407,6 +410,36 @@ export function saveForestStore(store: MindForestStore): void {
     localStorage.setItem(MIND_FOREST_STORAGE_KEY, JSON.stringify(store))
   } catch {
     /* 忽略：持久化失败不阻塞交互 */
+  }
+}
+
+/** 备份当前树林到 .bak 键（导入覆盖前调用；写失败静默）。 */
+export function backupForestStore(store: MindForestStore): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(store))
+  } catch {
+    /* 忽略：备份失败不阻塞导入 */
+  }
+}
+
+/** 是否已与云端同步过（新设备/清缓存返回 false）。 */
+export function hasCloudSyncMarker(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(CLOUD_SYNC_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+/** 记录「本浏览器已与云端同步」（pull/push 成功后调用；写失败静默）。 */
+export function setCloudSyncMarker(): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(CLOUD_SYNC_KEY, '1')
+  } catch {
+    /* 忽略 */
   }
 }
 

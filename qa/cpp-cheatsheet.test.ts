@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { CPP_CHEAT_ENTRIES, CPP_CHEAT_CATEGORY_META } from '../shared/constants/cpp-cheatsheet'
 import type { CppCheatCategory } from '../shared/types/domain'
 
-const VALID_CATEGORIES: CppCheatCategory[] = ['syntax', 'stl', 'algorithm', 'memory', 'pitfall']
+// 合法分类以 CPP_CHEAT_CATEGORY_META 为唯一事实来源（CppCheatCategory 已扩展至 11 类）
+const VALID_CATEGORIES: CppCheatCategory[] = Object.keys(CPP_CHEAT_CATEGORY_META) as CppCheatCategory[]
 
 test('CPP_CHEAT_ENTRIES：id 唯一且必填字段完整', () => {
   const ids = new Set(CPP_CHEAT_ENTRIES.map((e) => e.id))
@@ -23,7 +24,7 @@ test('CPP_CHEAT_ENTRIES：category 均合法', () => {
   }
 })
 
-test('CPP_CHEAT_ENTRIES：五个分类均有条目', () => {
+test('CPP_CHEAT_ENTRIES：各分类均有条目', () => {
   for (const c of VALID_CATEGORIES) {
     const count = CPP_CHEAT_ENTRIES.filter((e) => e.category === c).length
     assert.ok(count > 0, `分类 ${c} 无条目`)

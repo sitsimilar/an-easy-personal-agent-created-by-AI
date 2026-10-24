@@ -15,6 +15,11 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   LinearProgress,
   Stack,
   TextField,
@@ -32,6 +37,8 @@ import type {
 } from '@shared/types/domain'
 import { aiService } from '@/services/aiService'
 import { friendlyError } from '@/lib/unwrap'
+import { useAuthStore } from '@/store/authStore'
+import { mergeForestStores, mindforestCloud } from '@/services/mindforest-cloud'
 import PageHeader from '@/components/PageHeader'
 import MindTreeNodeView from '@/components/mindtree/MindTreeNodeView'
 import {
@@ -44,6 +51,7 @@ import {
 import {
   addSuggestedCrossLinks,
   addTreeToForest,
+  backupForestStore,
   confirmCrossLink,
   createDebouncedSaver,
   createForest,
@@ -52,6 +60,7 @@ import {
   deleteForest,
   deleteTree,
   deserializeForestStore,
+  hasCloudSyncMarker,
   ignoreCrossLink,
   loadForestStore,
   pruneNodeCrossLinks,
@@ -60,6 +69,7 @@ import {
   renameTree,
   saveForestStore,
   serializeForestStore,
+  setCloudSyncMarker,
   upsertTree,
 } from '@/services/mindforest-store'
 import ForestSidebar from '@/components/mindforest/ForestSidebar'
@@ -109,14 +119,63 @@ export default function MindTreePage() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({})
+  /** 待确认导入的树林文档（已解析校验通过，等用户二次确认）。 */
+  const [importConfirm, setImportConfirm] = useState<MindForestStore | null>(null)
   const lastTopicRef = useRef('')
   const storeRef = useRef(store)
   const saverRef = useRef(createDebouncedSaver(400))
+  const cloudPushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // 卸载时 flush 一次，避免 debounce 未落盘的数据丢失
+  // 卸载时 flush 一次（本地 + 待推送的云端），避免 debounce 未落盘的数据丢失
   useEffect(() => {
-    return () => saveForestStore(storeRef.current)
+    return () => {
+      saveForestStore(storeRef.current)
+      if (cloudPushTimerRef.current) {
+        clearTimeout(cloudPushTimerRef.current)
+        cloudPushTimerRef.current = null
+        if (useAuthStore.getState().session) {
+          void mindforestCloud
+            .push(storeRef.current)
+            .then(() => setCloudSyncMarker())
+            .catch(() => undefined)
+        }
+      }
+    }
+  }, [])
+
+  // 登录后拉取云端树林并与本地合并（最近写入优先；云端不可达/无数据时静默，本地照常可用）
+  useEffect(() => {
+    let cancelled = false
+    if (!useAuthStore.getState().session) return
+    void (async () => {
+      try {
+        const cloudStore = await mindforestCloud.pull()
+        if (cancelled) return
+        if (cloudStore) {
+          const { store: merged, source } = mergeForestStores(
+            storeRef.current,
+            cloudStore,
+            hasCloudSyncMarker(),
+          )
+          if (source === 'cloud') {
+            applyStore(() => merged)
+            setActiveTreeId(merged.trees[0]?.id ?? null)
+            setNotice('已从云端恢复思维树数据')
+          } else {
+            pushCloudDebounced(storeRef.current)
+          }
+        } else {
+          pushCloudDebounced(storeRef.current)
+        }
+      } catch {
+        /* 云端同步失败静默：本地思维树照常可用 */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /** 当前树（用户选择优先，否则第一棵）。 */
@@ -126,12 +185,26 @@ export default function MindTreePage() {
   /** 当前树林。 */
   const activeForest = activeForestId ? store.forests.find((f) => f.id === activeForestId) ?? null : null
 
-  /** 应用 store 变更：更新状态 + debounce 持久化 + 刷新 storeRef。 */
+  /** 防抖推送云端（登录态下生效；成功后标记「已同步」，失败静默下次再试）。 */
+  const pushCloudDebounced = (nextStore: MindForestStore): void => {
+    if (!useAuthStore.getState().session) return
+    if (cloudPushTimerRef.current) clearTimeout(cloudPushTimerRef.current)
+    cloudPushTimerRef.current = setTimeout(() => {
+      cloudPushTimerRef.current = null
+      void mindforestCloud
+        .push(nextStore)
+        .then(() => setCloudSyncMarker())
+        .catch(() => undefined)
+    }, 800)
+  }
+
+  /** 应用 store 变更：更新状态 + debounce 本地/云端持久化 + 刷新 storeRef。 */
   const applyStore = (fn: (s: MindForestStore) => MindForestStore): void => {
     setStore((prev) => {
       const next = fn(prev)
       storeRef.current = next
       saverRef.current(next)
+      pushCloudDebounced(next)
       return next
     })
   }
@@ -398,7 +471,7 @@ export default function MindTreePage() {
     URL.revokeObjectURL(url)
   }
 
-  /** 选择导入文件后读取并解析。 */
+  /** 选择导入文件后读取并解析；合法则进入二次确认，非法直接报错。 */
   const handleImportFile = (file: File): void => {
     const reader = new FileReader()
     reader.onload = () => {
@@ -408,12 +481,21 @@ export default function MindTreePage() {
         setError('导入失败：文件格式不正确或数据不完整，请检查后重试')
         return
       }
-      applyStore(() => next)
-      setActiveTreeId(next.trees[0]?.id ?? null)
-      setNotice('导入成功，思维树林数据已更新')
+      setError('')
+      setImportConfirm(next)
     }
     reader.onerror = () => setError('导入失败：无法读取文件')
     reader.readAsText(file)
+  }
+
+  /** 确认导入：先备份当前数据到 .bak，再覆盖。 */
+  const handleConfirmImport = (): void => {
+    if (!importConfirm) return
+    backupForestStore(storeRef.current)
+    applyStore(() => importConfirm)
+    setActiveTreeId(importConfirm.trees[0]?.id ?? null)
+    setImportConfirm(null)
+    setNotice('导入成功，思维树林数据已更新（原数据已备份到浏览器本地）')
   }
 
   /** 页面级错误重试：优先用上次主题重新生成。 */
@@ -644,6 +726,23 @@ export default function MindTreePage() {
           )}
         </Box>
       </Stack>
+
+      {/* 导入二次确认：明确列出将被覆盖的当前数据量 + 自动备份说明 */}
+      <Dialog open={importConfirm !== null} onClose={() => setImportConfirm(null)}>
+        <DialogTitle>确认导入思维树数据？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            导入将覆盖当前 {store.trees.length} 棵树、{store.forests.length} 个树林。
+            导入前会自动备份当前数据到浏览器本地，确认后不可撤销。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setImportConfirm(null)}>取消</Button>
+          <Button variant="contained" onClick={handleConfirmImport} autoFocus>
+            确认导入
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

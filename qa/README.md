@@ -28,6 +28,7 @@
 | `qa/mindtree.test.ts` | `web/src/components/mindtree/dimensions.ts`、`web/src/services/aiService.ts`、`web/src/services/mindtree-parse.ts` | 5 维度模板/压感归一化/线宽/节点工厂/维度标签配色；generateMindTree 结构化解析、截断、结果缓存、LLM 硬契约、空维度抛错（cloud.llm 已 mock）；extractCompletedDimensions 截断/闭合/转义/中文引号容错 |
 | `qa/mindforest-store.test.ts` | `web/src/services/mindforest-store.ts` | 树林文档工厂/CRUD；legacy 单树迁移；schema 校验与悬挂链接过滤；删除树/节点/移出树林级联；交叉判定（suggested/confirmed）；交叉伙伴反查；无序对去重；localStorage 容错 |
 | `qa/mindforest-cross.test.ts` | `web/src/services/mindforest-cross.ts` | 展平前序编号/prompt 构造/节点抽样截断；解析容错（同树/越界/未知编号丢弃、markdown 围栏、无序对去重） |
+| `qa/mindforest-cloud.test.ts` | `web/src/services/mindforest-cloud.ts` | 云端同步合并策略：空文档判定、最近写入时间戳、本地空→云端（新设备）vs 主动清空、最近写入优先 |
 
 ## 复跑方式
 

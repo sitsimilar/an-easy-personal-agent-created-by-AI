@@ -160,13 +160,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS plugins_owner_plugin_uniq ON public.plugins (o
 CREATE INDEX IF NOT EXISTS plugins_owner_created_idx ON public.plugins (owner_id, installed_at DESC);
 
 -- ---------------------------------------------------------------------------
+-- 9. mind_trees —— 思维树林云端同步（每用户一行，整份树林文档存 JSONB）
+--     payload 为 MindForestStore（{version,trees,forests,crossLinks}）整体序列化；
+--     owner_id 唯一索引保证每用户一行；本地 localStorage 缓存 + 登录后云端同步。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.mind_trees (
+  id         BIGINT      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id   TEXT        NOT NULL DEFAULT auth.uid(),
+  payload    JSONB       NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS mind_trees_owner_id_key ON public.mind_trees (owner_id);
+
+-- ---------------------------------------------------------------------------
 -- 6. RLS 策略（每张表同构执行）
 -- ---------------------------------------------------------------------------
 DO $$
 DECLARE
   t TEXT;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['records','record_links','code_analyses','qa_sessions','chat_messages','settings','images','plugins']
+  FOREACH t IN ARRAY ARRAY['records','record_links','code_analyses','qa_sessions','chat_messages','settings','images','plugins','mind_trees']
   LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.%I TO authenticated, anon', t);
