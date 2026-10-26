@@ -1,12 +1,15 @@
 import { cloud } from '@/lib/cloud'
 import { unwrap } from '@/lib/unwrap'
 import type { RecordsRow } from '@/lib/database.types'
+import { normalizeRecurrenceRule } from '@/lib/recurrence'
 import type {
   InfoRecord,
+  LinkMeta,
   RecordCreateInput,
   RecordListFilter,
   RecordListResult,
   RecordType,
+  RecurrenceRule,
   RelateResultItem,
   TodoStatus,
 } from '@shared/types/domain'
@@ -18,7 +21,48 @@ const LIMITS = {
   listByRange: 200,
   streakSample: 500,
   relatedTargets: 500,
+  reminderCandidates: 200,
 } as const
+
+/** JSONB 循环规则归一：脏数据（字符串/缺字段/非法 freq）统一为 null。 */
+function toRecurrence(value: unknown): RecurrenceRule | null {
+  if (typeof value === 'string') {
+    try {
+      return normalizeRecurrenceRule(JSON.parse(value))
+    } catch {
+      return null
+    }
+  }
+  return normalizeRecurrenceRule(value)
+}
+
+/** JSONB 链接元数据归一：脏数据统一为 null，status 非法视为失败。 */
+function toLinkMeta(value: unknown): LinkMeta | null {
+  let raw: unknown = value
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      return null
+    }
+  }
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null)
+  const status: LinkMeta['status'] = obj.status === 'ok' ? 'ok' : 'failed'
+  const meta: LinkMeta = {
+    title: text(obj.title),
+    description: text(obj.description),
+    image: text(obj.image),
+    site: text(obj.site),
+    fetchedAt: typeof obj.fetchedAt === 'string' ? obj.fetchedAt : undefined,
+    status,
+  }
+  if (typeof obj.errorCode === 'string' && obj.errorCode) meta.errorCode = obj.errorCode
+  // 全部字段为空且未标记失败 → 视为无元数据
+  if (status === 'ok' && !meta.title && !meta.description && !meta.image && !meta.site) return null
+  return meta
+}
 
 /** 数据库行（snake_case）→ 领域类型（camelCase）。 */
 export function mapRecord(row: RecordsRow): InfoRecord {
@@ -35,6 +79,10 @@ export function mapRecord(row: RecordsRow): InfoRecord {
     todoStatus: row.todo_status,
     priority: row.priority,
     remindAt: row.remind_at,
+    recurrence: toRecurrence(row.recurrence),
+    recurrenceParentId: row.recurrence_parent_id ?? null,
+    recurrenceNextId: row.recurrence_next_id ?? null,
+    linkMeta: toLinkMeta(row.link_meta),
     isDeleted: row.is_deleted,
     deletedAt: row.deleted_at,
     createdAt: row.created_at,
@@ -109,6 +157,10 @@ function toSnake(input: RecordUpdateInput): Record<string, unknown> {
   if (input.todoStatus !== undefined) fields.todo_status = input.todoStatus
   if (input.priority !== undefined) fields.priority = input.priority
   if (input.remindAt !== undefined) fields.remind_at = input.remindAt
+  if (input.recurrence !== undefined) fields.recurrence = input.recurrence
+  if (input.recurrenceParentId !== undefined) fields.recurrence_parent_id = input.recurrenceParentId
+  if (input.recurrenceNextId !== undefined) fields.recurrence_next_id = input.recurrenceNextId
+  if (input.linkMeta !== undefined) fields.link_meta = input.linkMeta
   return fields
 }
 
@@ -128,6 +180,8 @@ export const recordService = {
         todo_status: input.todoStatus ?? null,
         priority: input.priority ?? null,
         remind_at: input.remindAt ?? null,
+        recurrence: input.recurrence ?? null,
+        recurrence_parent_id: input.recurrenceParentId ?? null,
       })
       .select()
     return mapRecord(unwrapRows({ data, error })[0])
@@ -250,6 +304,25 @@ export const recordService = {
       .maybeSingle()
     const row = unwrap({ data, error }) as RecordsRow | null
     return row ? mapRecord(row) : null
+  },
+
+  /**
+   * 提醒候选：未删除 + 待办 + 未完成 + remind_at 落在窗口内。
+   * 使用 records_owner_todo_remind_idx 索引，limit 200 防一次拉太多。
+   */
+  async listReminderCandidates(fromIso: string, toIso: string): Promise<InfoRecord[]> {
+    const { data, error } = await cloud.database
+      .from('records')
+      .select('*')
+      .eq('is_deleted', false)
+      .eq('type', 'todo')
+      .eq('todo_status', 'pending')
+      .gte('remind_at', fromIso)
+      .lte('remind_at', toIso)
+      .order('remind_at', { ascending: true })
+      .limit(LIMITS.reminderCandidates)
+    const rows = (unwrap({ data, error }) as RecordsRow[] | null) ?? []
+    return rows.map(mapRecord)
   },
 
   /** 更新记录（UI 编辑）。 */
@@ -378,4 +451,8 @@ export const recordService = {
 /** UI 编辑补丁（领域字段，camelCase）。 */
 export interface RecordUpdateInput extends Partial<RecordCreateInput> {
   summary?: string | null
+  /** 由本条生成的下一期 id（循环回写用）。 */
+  recurrenceNextId?: number | null
+  /** 链接元数据（P0-C 回写用）。 */
+  linkMeta?: LinkMeta | null
 }

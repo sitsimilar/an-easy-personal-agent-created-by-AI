@@ -7,6 +7,10 @@ import { app } from 'electron'
 // 仅 --disable-gpu-sandbox 不够，渲染进程同样崩）。
 app.commandLine.appendSwitch('no-sandbox')
 
+// Windows 系统通知（P0-A）：必须与 electron-builder 的 appId 一致，
+// 否则 toast 可能静默不显示（通知中心按 AppUserModelId 归属应用）。
+app.setAppUserModelId('com.personalagent.desktop')
+
 import { VsMonitor, detectVsInstalled } from './vs-monitor'
 import { AnalysisOrchestrator } from './analysis-orchestrator'
 import { store } from './store'

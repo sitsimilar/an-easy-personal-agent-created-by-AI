@@ -5,6 +5,7 @@ const { execSync } = require('child_process')
 const http = require('http')
 const fs = require('fs')
 const path = require('path')
+const { handleLinkPreview } = require('./server/link-preview')
 
 const root = __dirname
 const webDir = path.join(root, 'web')
@@ -50,6 +51,19 @@ const MIME = {
 
 http
   .createServer((req, res) => {
+    // 链接元数据代理（P0-C）：必须在静态托管/SPA 回退**之前**判定，
+    // 且只用 pathname 匹配（不能先 decodeURIComponent，避免把 %2F 变成路径分隔符）。
+    let apiPath = ''
+    try {
+      apiPath = new URL(req.url || '/', 'http://x').pathname
+    } catch {
+      apiPath = ''
+    }
+    if (apiPath === '/api/link-preview') {
+      handleLinkPreview(req, res)
+      return
+    }
+
     let urlPath
     try {
       urlPath = decodeURIComponent((req.url || '/').split('?')[0])

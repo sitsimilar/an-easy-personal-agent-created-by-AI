@@ -6,7 +6,11 @@ import {
   Card,
   CardContent,
   Divider,
+  FormControl,
   FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   Switch,
   TextField,
@@ -24,6 +28,8 @@ import UpdateDialog from '@/components/UpdateDialog'
 import { checkForUpdate, currentVersion, type CheckResult } from '@/services/updateService'
 import { imageService } from '@/services/imageService'
 import { profileService, validateNickname, formatAccountId } from '@/services/profileService'
+import { reminderService } from '@/services/reminderService'
+import { pushNotice } from '@/store/noticeStore'
 import { useProfileStore } from '@/store/profileStore'
 
 const DEFAULT_SETTINGS = {
@@ -31,6 +37,9 @@ const DEFAULT_SETTINGS = {
   codeUploadEnabled: true,
   floatWindowEnabled: true,
 }
+
+/** 提醒提前量可选值（分钟）。 */
+const LEAD_OPTIONS = [0, 5, 10, 15, 30, 60]
 
 export default function SettingsPage() {
   const navigate = useNavigate()
@@ -59,6 +68,11 @@ export default function SettingsPage() {
   const [nicknameSaving, setNicknameSaving] = useState(false)
   const [nicknameSaved, setNicknameSaved] = useState(false)
   const [copyHint, setCopyHint] = useState(false)
+  const [notifyEnabled, setNotifyEnabled] = useState(true)
+  const [remindLeadMinutes, setRemindLeadMinutes] = useState(0)
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
+  const [quietStart, setQuietStart] = useState('22:00')
+  const [quietEnd, setQuietEnd] = useState('08:00')
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -78,6 +92,11 @@ export default function SettingsPage() {
           setCodeUploadEnabled(row.code_upload_enabled ?? true)
           setFloatWindowEnabled(row.float_window_enabled ?? true)
           setAvatarImageId(row.avatar_image_id ?? null)
+          setNotifyEnabled(row.notify_enabled ?? true)
+          setRemindLeadMinutes(Number.isFinite(row.remind_lead_minutes) ? Number(row.remind_lead_minutes) : 0)
+          setQuietHoursEnabled(row.quiet_hours_enabled ?? false)
+          setQuietStart(row.quiet_start || '22:00')
+          setQuietEnd(row.quiet_end || '08:00')
         }
       } catch (err) {
         if (!cancelled) {
@@ -103,6 +122,11 @@ export default function SettingsPage() {
         vs_path: vsPath.trim() || null,
         code_upload_enabled: codeUploadEnabled,
         float_window_enabled: floatWindowEnabled,
+        notify_enabled: notifyEnabled,
+        remind_lead_minutes: remindLeadMinutes,
+        quiet_hours_enabled: quietHoursEnabled,
+        quiet_start: quietStart || '22:00',
+        quiet_end: quietEnd || '08:00',
       })
       setSettingsId(id)
 
@@ -112,11 +136,25 @@ export default function SettingsPage() {
         await window.desktopBridge.setFloatWindowEnabled(floatWindowEnabled)
         await window.desktopBridge.setVsPath(vsPath.trim())
       }
+
+      // 立即让对方生效：缓存失效 + 重新计算一次提醒窗口
+      reminderService.onSettingsSaved()
       setSaved(true)
     } catch (err) {
       setError(friendlyError(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** 首次开启总开关时请求通知权限（Web 需授权；被拒降级为应用内提示，不报错）。 */
+  const handleNotifyToggle = async (enabled: boolean) => {
+    setNotifyEnabled(enabled)
+    setSaved(false)
+    if (!enabled) return
+    const permission = await reminderService.requestPermission()
+    if (permission === 'denied') {
+      pushNotice('通知权限未开启，提醒将降级为应用内提示', 'warning')
     }
   }
 
@@ -415,6 +453,92 @@ export default function SettingsPage() {
           <Typography variant="caption" color="text.secondary" display="block">
             影响选区分析的模型选择，切换即时生效；自动分类、自动总结等始终使用质量优先模型。
           </Typography>
+        </CardContent>
+      </Card>
+
+      <Card variant="outlined" sx={{ mb: 2 }}>
+        <CardContent>
+          <Typography variant="subtitle2" gutterBottom>
+            提醒
+          </Typography>
+          <Stack spacing={2}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={notifyEnabled}
+                  onChange={(e) => void handleNotifyToggle(e.target.checked)}
+                  disabled={loading}
+                />
+              }
+              label="到点弹系统通知（关闭后列表仍显示提醒时间）"
+            />
+
+            <FormControl size="small" sx={{ maxWidth: 260 }} disabled={loading || !notifyEnabled}>
+              <InputLabel id="remind-lead-label">提前量</InputLabel>
+              <Select
+                labelId="remind-lead-label"
+                label="提前量"
+                value={remindLeadMinutes}
+                onChange={(e) => {
+                  setRemindLeadMinutes(Number(e.target.value))
+                  setSaved(false)
+                }}
+              >
+                {LEAD_OPTIONS.map((m) => (
+                  <MenuItem key={m} value={m}>
+                    {m === 0 ? '到点提醒' : `提前 ${m} 分钟`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={quietHoursEnabled}
+                  onChange={(e) => {
+                    setQuietHoursEnabled(e.target.checked)
+                    setSaved(false)
+                  }}
+                  disabled={loading || !notifyEnabled}
+                />
+              }
+              label="免打扰时段（时段内不弹，结束后补发一次）"
+            />
+
+            <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                size="small"
+                type="time"
+                label="免打扰开始"
+                value={quietStart}
+                onChange={(e) => {
+                  setQuietStart(e.target.value)
+                  setSaved(false)
+                }}
+                InputLabelProps={{ shrink: true }}
+                disabled={loading || !notifyEnabled || !quietHoursEnabled}
+                sx={{ width: 168 }}
+              />
+              <TextField
+                size="small"
+                type="time"
+                label="免打扰结束"
+                value={quietEnd}
+                onChange={(e) => {
+                  setQuietEnd(e.target.value)
+                  setSaved(false)
+                }}
+                InputLabelProps={{ shrink: true }}
+                disabled={loading || !notifyEnabled || !quietHoursEnabled}
+                sx={{ width: 168 }}
+              />
+            </Stack>
+
+            <Typography variant="caption" color="text.secondary">
+              免打扰默认 22:00–08:00（可跨零点）；超过 12 小时未提醒的待办直接丢弃，不堆积轰炸。保存设置后立即生效。
+            </Typography>
+          </Stack>
         </CardContent>
       </Card>
 

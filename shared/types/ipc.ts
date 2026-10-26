@@ -196,6 +196,21 @@ export interface CppProvisionResult {
   toolchainDir?: string
 }
 
+/** 系统通知载荷（renderer → main，P0-A）。 */
+export interface NotifyPayload {
+  /** 去重键（`记录id|remind_at`）。 */
+  key: string
+  recordId: number
+  title: string
+  body: string
+}
+
+/** 通知点击事件载荷（main → renderer，P0-A）。 */
+export interface NotifyClickedPayload {
+  key: string
+  recordId: number
+}
+
 /**
  * preload 暴露到 window.desktopBridge 的 API。
  *
@@ -228,6 +243,10 @@ export interface DesktopBridge {
   onCppProvision(cb: (evt: CppProvisionEvent) => void): () => void
   notifyFloatingActivity(): void
   notifyAnalysisDone(payload: AnalysisDonePayload): void
+  /** 弹系统通知（P0-A；主进程创建原生 Notification）。 */
+  notify(payload: NotifyPayload): Promise<{ ok: boolean; message?: string }>
+  /** 监听通知点击（P0-A；返回取消注册函数）。 */
+  onNotificationClicked(cb: (payload: NotifyClickedPayload) => void): () => void
   onVsStarted(cb: (payload: VsStartedPayload) => void): () => void
   onAnalysisResult(cb: (payload: AnalysisDonePayload) => void): () => void
   onStatusChanged(cb: (status: DesktopStatus) => void): () => void

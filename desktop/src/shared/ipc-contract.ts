@@ -28,6 +28,7 @@ export const IPC = {
   cppDebugStart: 'desktop:cpp-debug-start',
   cppDebugAction: 'desktop:cpp-debug-action',
   cppDebugStop: 'desktop:cpp-debug-stop',
+  notify: 'desktop:notify',
   // renderer → main（send）
   analysisDone: 'desktop:analysis-done',
   floatingActivity: 'desktop:floating-activity',
@@ -40,6 +41,7 @@ export const IPC = {
   evtFloatingWindowStateChanged: 'desktop:floating-window-state-changed',
   evtCppDebug: 'desktop:cpp-debug-event',
   evtCppProvision: 'desktop:cpp-provision-event',
+  evtNotifyClicked: 'desktop:notify-clicked',
 } as const
 
 /**
@@ -246,4 +248,19 @@ export interface CppProvisionResult {
   ok: boolean
   message?: string
   toolchainDir?: string
+}
+
+/** 系统通知载荷（renderer → main）。 */
+export interface NotifyPayload {
+  /** 去重键（`记录id|remind_at`），点击时原样回传。 */
+  key: string
+  recordId: number
+  title: string
+  body: string
+}
+
+/** 通知点击事件载荷（main → renderer）。 */
+export interface NotifyClickedPayload {
+  key: string
+  recordId: number
 }

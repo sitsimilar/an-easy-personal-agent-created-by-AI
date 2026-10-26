@@ -21,11 +21,13 @@ import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import FolderIcon from '@mui/icons-material/Folder'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
-import type { Priority, RecordType } from '@shared/types/domain'
+import type { Priority, RecordType, RecurrenceRule } from '@shared/types/domain'
 import { recordService } from '@/services/recordService'
 import { aiService } from '@/services/aiService'
 import { storageService } from '@/services/storageService'
+import { enrichLinkMeta, isHttpUrl } from '@/services/linkPreviewService'
 import { friendlyError } from '@/lib/unwrap'
+import RecurrenceField from './RecurrenceField'
 
 interface RecordCreateDialogProps {
   open: boolean
@@ -43,6 +45,7 @@ export default function RecordCreateDialog({ open, onClose, onCreated, defaultTy
   const [url, setUrl] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
   const [remindAt, setRemindAt] = useState(defaultRemindAt ?? '')
+  const [recurrence, setRecurrence] = useState<RecurrenceRule | null>(null)
   const [filePath, setFilePath] = useState<string | null>(null)
   const [fileName, setFileName] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -57,6 +60,7 @@ export default function RecordCreateDialog({ open, onClose, onCreated, defaultTy
     setUrl('')
     setPriority('medium')
     setRemindAt(defaultRemindAt ?? '')
+    setRecurrence(null)
     setFilePath(null)
     setFileName('')
     setError('')
@@ -99,10 +103,16 @@ export default function RecordCreateDialog({ open, onClose, onCreated, defaultTy
         todoStatus: type === 'todo' ? 'pending' : null,
         priority: type === 'todo' ? priority : null,
         remindAt: type === 'todo' && remindAt ? new Date(remindAt).toISOString() : null,
+        recurrence: type === 'todo' ? recurrence : null,
       })
 
       // 后台自动分类/总结/关联（不阻塞关闭弹窗）
       aiService.enrichRecord(created).catch(() => undefined)
+
+      // 资料链接：创建成功后异步抓取 OG（不 await 保存链路，保证 < 1s 返回）
+      if (type === 'material' && isHttpUrl(created.url)) {
+        void enrichLinkMeta(created)
+      }
 
       reset()
       onCreated?.()
@@ -124,6 +134,7 @@ export default function RecordCreateDialog({ open, onClose, onCreated, defaultTy
             value={type}
             onChange={(_e, v) => {
               if (v) setType(v as RecordType)
+              if (v !== 'todo') setRecurrence(null)
             }}
           >
             <ToggleButton value="idea">
@@ -211,6 +222,7 @@ export default function RecordCreateDialog({ open, onClose, onCreated, defaultTy
                 onChange={(e) => setRemindAt(e.target.value)}
                 InputLabelProps={{ shrink: true }}
               />
+              <RecurrenceField value={recurrence} onChange={setRecurrence} remindAt={remindAt || null} />
             </>
           )}
 

@@ -46,8 +46,19 @@ import SearchBar from './SearchBar'
 import ContextMenu from './ContextMenu'
 import RecordCreateDialog from './RecordCreateDialog'
 import TitleBar, { TITLE_BAR_HEIGHT } from './TitleBar'
+import NoticeHost from './NoticeHost'
+import ReminderScheduler from './ReminderScheduler'
 
 const DRAWER_WIDTH = 240
+
+/** 是否处于桌面悬浮窗 companion 模式（该模式不挂提醒调度，避免双窗口重复提醒）。 */
+function isCompanionMode(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('mode') === 'companion'
+  } catch {
+    return false
+  }
+}
 
 interface LayoutProps {
   /** 是否桌面主窗口模式（由 App 传入 ?desktop=1 检测结果） */
@@ -381,6 +392,10 @@ export default function Layout({ desktopMain }: LayoutProps) {
         y={contextMenu?.y ?? 0}
         onClose={() => setContextMenu(null)}
       />
+
+      {/* 提醒调度（30s 轮询 + 通知点击跳转）与应用内提示宿主 */}
+      {!isCompanionMode() && <ReminderScheduler />}
+      <NoticeHost />
     </Box>
   )
 }

@@ -56,6 +56,21 @@ const targets = [
   { entry: 'qa/toolchain.test.ts', out: 'qa/dist/toolchain.test.cjs', alias: electronAlias },
   { entry: 'qa/cdb-parse.test.ts', out: 'qa/dist/cdb-parse.test.cjs', alias: {} },
   { entry: 'qa/provision.test.ts', out: 'qa/dist/provision.test.cjs', alias: electronAlias },
+  { entry: 'qa/recurrence.test.ts', out: 'qa/dist/recurrence.test.cjs', alias: {} },
+  { entry: 'qa/recurrence-service.test.ts', out: 'qa/dist/recurrence-service.test.cjs', alias: webAlias },
+  { entry: 'qa/reminder-schedule.test.ts', out: 'qa/dist/reminder-schedule.test.cjs', alias: {} },
+  { entry: 'qa/link-preview.test.ts', out: 'qa/dist/link-preview.test.cjs', alias: {} },
+  // P0 对抗性测试（QA 独立补充）
+  { entry: 'qa/p0-a-reminder-schedule-adversarial.test.ts', out: 'qa/dist/p0-a-reminder-schedule-adversarial.test.cjs', alias: {} },
+  { entry: 'qa/p0-a-reminder-service.test.ts', out: 'qa/dist/p0-a-reminder-service.test.cjs', alias: webAlias },
+  { entry: 'qa/p0-a-notification-provider.test.ts', out: 'qa/dist/p0-a-notification-provider.test.cjs', alias: webAlias },
+  { entry: 'qa/p0-a-notification-chain.test.ts', out: 'qa/dist/p0-a-notification-chain.test.cjs', alias: {} },
+  { entry: 'qa/p0-a-desktop-notifier.test.ts', out: 'qa/dist/p0-a-desktop-notifier.test.cjs', alias: electronAlias },
+  { entry: 'qa/p0-b-recurrence-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-adversarial.test.cjs', alias: {} },
+  { entry: 'qa/p0-b-recurrence-service-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-service-adversarial.test.cjs', alias: webAlias },
+  { entry: 'qa/p0-c-link-preview-http.test.ts', out: 'qa/dist/p0-c-link-preview-http.test.cjs', alias: {} },
+  { entry: 'qa/p0-c-server-smoke.test.ts', out: 'qa/dist/p0-c-server-smoke.test.cjs', alias: {} },
+  { entry: 'qa/p0-e-frontend-safety.test.ts', out: 'qa/dist/p0-e-frontend-safety.test.cjs', alias: webAlias },
 ]
 
 // 云服务配置已参数化为 import.meta.env.VITE_*；测试环境无 Vite 注入，

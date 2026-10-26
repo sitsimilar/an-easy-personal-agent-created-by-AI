@@ -78,6 +78,8 @@ export function createMainWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // 提醒调度在渲染层用 30s 定时器：隐藏到托盘时不能被后台节流降频（P0-A）
+      backgroundThrottling: false,
     },
   })
 

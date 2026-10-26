@@ -9,6 +9,33 @@ export type RecordType = 'idea' | 'material' | 'todo'
 export type TodoStatus = 'pending' | 'done'
 export type Priority = 'high' | 'medium' | 'low'
 
+/** 循环频率：每天 / 每周 / 每月。 */
+export type RecurrenceFreq = 'daily' | 'weekly' | 'monthly'
+
+/** 待办循环规则（JSONB 存储，内部键为 camelCase）。 */
+export interface RecurrenceRule {
+  freq: RecurrenceFreq
+  /** 间隔，1..99。 */
+  interval: number
+  /** 0=周日 … 6=周六，仅 weekly 使用；升序去重。 */
+  weekdays?: number[]
+  /** 锚定日号 1–31，仅 monthly 使用：短月夹取到月末，但后续期次回到该日（避免逐月漂移）。 */
+  anchorDay?: number | null
+  /** 'YYYY-MM-DD' 本地日，含当日；null/空表示无限。 */
+  endDate?: string | null
+}
+
+/** 链接元数据（P0-C，由服务端代理抓取后回写）。 */
+export interface LinkMeta {
+  title?: string | null
+  description?: string | null
+  image?: string | null
+  site?: string | null
+  fetchedAt?: string
+  status: 'ok' | 'failed'
+  errorCode?: string
+}
+
 /** 信息记录主表（统一存放想法/资料/待办）。 */
 export interface InfoRecord {
   id: number
@@ -24,6 +51,14 @@ export interface InfoRecord {
   todoStatus?: TodoStatus | null
   priority?: Priority | null
   remindAt?: string | null
+  /** 循环规则（无循环为 null）。 */
+  recurrence?: RecurrenceRule | null
+  /** 循环链根记录 id（根记录为 null）。 */
+  recurrenceParentId?: number | null
+  /** 由本条生成的下一期记录 id。 */
+  recurrenceNextId?: number | null
+  /** 链接元数据（无则 null）。 */
+  linkMeta?: LinkMeta | null
   isDeleted: boolean
   deletedAt?: string | null
   createdAt: string
@@ -62,6 +97,14 @@ export interface UserSettings {
   floatWindowEnabled: boolean
   floatPosition?: unknown
   notifyEnabled: boolean
+  /** 提醒提前量（分钟）：0/5/10/15/30/60。 */
+  remindLeadMinutes: number
+  /** 免打扰开关。 */
+  quietHoursEnabled: boolean
+  /** 免打扰起始（本地墙钟 HH:mm）。 */
+  quietStart: string
+  /** 免打扰结束（本地墙钟 HH:mm），可跨零点。 */
+  quietEnd: string
 }
 
 /** 新建记录入参。 */
@@ -76,6 +119,10 @@ export interface RecordCreateInput {
   todoStatus?: TodoStatus | null
   priority?: Priority | null
   remindAt?: string | null
+  /** 循环规则（仅待办使用）。 */
+  recurrence?: RecurrenceRule | null
+  /** 循环链根记录 id（生成下一期时传入）。 */
+  recurrenceParentId?: number | null
 }
 
 /** 记录列表筛选条件。 */

@@ -19,6 +19,14 @@ export interface RecordsRow {
   todo_status: 'pending' | 'done' | null
   priority: 'high' | 'medium' | 'low' | null
   remind_at: string | null
+  /** P0-B 循环规则（JSONB，脏数据按 null 处理）。 */
+  recurrence: unknown
+  /** P0-B 循环链根记录 id。 */
+  recurrence_parent_id: number | null
+  /** P0-B 由本条生成的下一期记录 id。 */
+  recurrence_next_id: number | null
+  /** P0-C 链接元数据（JSONB）。 */
+  link_meta: unknown
   is_deleted: boolean
   deleted_at: string | null
   created_at: string
@@ -55,6 +63,14 @@ export interface SettingsRow {
   float_window_enabled: boolean
   float_position: unknown
   notify_enabled: boolean
+  /** P0-A 提醒提前量（分钟）。 */
+  remind_lead_minutes: number
+  /** P0-A 免打扰开关。 */
+  quiet_hours_enabled: boolean
+  /** P0-A 免打扰起始（本地墙钟 HH:mm）。 */
+  quiet_start: string
+  /** P0-A 免打扰结束（本地墙钟 HH:mm）。 */
+  quiet_end: string
   avatar_image_id: number | null
   nickname: string | null
   updated_at: string

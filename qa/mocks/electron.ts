@@ -30,6 +30,7 @@ export function __resetElectronMock(): void {
   appQuitCalls = 0
   ipcHandlerChannels.length = 0
   trayMenuTemplates.length = 0
+  Notification.__reset()
 }
 
 /** 触发 app.whenReady 的 resolve（驱动入口模块的启动回调）。 */
@@ -319,4 +320,55 @@ export const net = {
   request(): never {
     throw new Error('net.request 未 mock：测试请注入 ProvisionDeps.download')
   },
+}
+
+/* ------------------------------------------------------------------ *
+ * P0-A 系统通知 mock（append-only）
+ * ------------------------------------------------------------------ */
+
+type NotifyHandler = (...args: unknown[]) => void
+
+/** Notification mock：记录构造参数与 show/click，供 notifier.ts 单测断言。 */
+export class Notification {
+  /** 系统是否支持通知（测试可改）。 */
+  static supported = true
+  /** 已创建的实例（按创建顺序）。 */
+  static instances: Notification[] = []
+
+  static isSupported(): boolean {
+    return Notification.supported
+  }
+
+  /** 清空实例与支持开关（测试用例隔离）。 */
+  static __reset(): void {
+    Notification.instances.length = 0
+    Notification.supported = true
+  }
+
+  readonly title: string
+  readonly body: string
+  shown = false
+  private handlers = new Map<string, NotifyHandler[]>()
+
+  constructor(options: { title?: string; body?: string }) {
+    this.title = options?.title ?? ''
+    this.body = options?.body ?? ''
+    Notification.instances.push(this)
+  }
+
+  on(event: string, fn: NotifyHandler): this {
+    const list = this.handlers.get(event) ?? []
+    list.push(fn)
+    this.handlers.set(event, list)
+    return this
+  }
+
+  show(): void {
+    this.shown = true
+  }
+
+  /** 触发事件（click/close），模拟用户在通知中心点击。 */
+  __emit(event: string): void {
+    for (const fn of this.handlers.get(event) ?? []) fn()
+  }
 }

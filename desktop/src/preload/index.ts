@@ -12,6 +12,8 @@ import {
   type FloatingWindowControlAction,
   type FloatingWindowStatePayload,
   type LocalPathsPayload,
+  type NotifyClickedPayload,
+  type NotifyPayload,
   type RunResult,
   type SelectionReadResult,
   type ToolchainStatus,
@@ -84,6 +86,13 @@ const fullBridge = {
   readSelection: (): Promise<SelectionReadResult> => ipcRenderer.invoke(IPC.readSelection),
   notifyAnalysisDone: (payload: AnalysisDonePayload): void => {
     ipcRenderer.send(IPC.analysisDone, payload)
+  },
+  notify: (payload: NotifyPayload): Promise<{ ok: boolean; message?: string }> =>
+    ipcRenderer.invoke(IPC.notify, payload),
+  onNotificationClicked: (cb: (payload: NotifyClickedPayload) => void): (() => void) => {
+    const handler = (_event: unknown, payload: NotifyClickedPayload) => cb(payload)
+    ipcRenderer.on(IPC.evtNotifyClicked, handler)
+    return () => ipcRenderer.removeListener(IPC.evtNotifyClicked, handler)
   },
   onVsStarted: (cb: (payload: VsStartedPayload) => void): (() => void) => {
     const handler = (_event: unknown, payload: VsStartedPayload) => cb(payload)

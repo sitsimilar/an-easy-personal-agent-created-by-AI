@@ -17,13 +17,20 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import SaveIcon from '@mui/icons-material/Save'
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates'
-import type { InfoRecord, KeyPoint } from '@shared/types/domain'
+import LinkIcon from '@mui/icons-material/Link'
+import RepeatIcon from '@mui/icons-material/Repeat'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import type { InfoRecord, KeyPoint, RecurrenceRule } from '@shared/types/domain'
 import { categoryColor, tagColor } from '@shared/constants/categories'
 import { recordService } from '@/services/recordService'
 import { aiService } from '@/services/aiService'
 import { storageService } from '@/services/storageService'
+import { retryLinkMeta, isHttpUrl, prettyHost } from '@/services/linkPreviewService'
+import { describeRecurrence } from '@/lib/recurrence'
 import { friendlyError } from '@/lib/unwrap'
 import RelatedRecords from './RelatedRecords'
+import LinkCover from './LinkCover'
+import RecurrenceField from './RecurrenceField'
 
 interface RecordDetailProps {
   record: InfoRecord | null
@@ -46,14 +53,19 @@ export default function RecordDetail({ record, open, onClose, onChanged, onDelet
   const [keyPoints, setKeyPoints] = useState<KeyPoint[]>([])
   const [keyPointsLoaded, setKeyPointsLoaded] = useState(false)
   const [extracting, setExtracting] = useState(false)
+  const [recurrenceEdit, setRecurrenceEdit] = useState<RecurrenceRule | null>(null)
+  const [retryingLink, setRetryingLink] = useState(false)
+  const [linkMessage, setLinkMessage] = useState('')
 
   useEffect(() => {
     if (record) {
       setTitle(record.title)
       setContent(record.content)
       setSummary(record.summary ?? '')
+      setRecurrenceEdit(record.recurrence ?? null)
       setEditing(false)
       setError('')
+      setLinkMessage('')
       setKeyPoints([])
       setKeyPointsLoaded(false)
     }
@@ -72,13 +84,36 @@ export default function RecordDetail({ record, open, onClose, onChanged, onDelet
     setSaving(true)
     setError('')
     try {
-      await recordService.updateRecord(record.id, { title: title.trim(), content: content.trim() })
+      await recordService.updateRecord(record.id, {
+        title: title.trim(),
+        content: content.trim(),
+        ...(record.type === 'todo' ? { recurrence: recurrenceEdit } : {}),
+      })
       setEditing(false)
       onChanged?.()
     } catch (err) {
       setError(friendlyError(err))
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** 重新抓取链接元数据（C2/C6：仅用户手动触发）。 */
+  const refetchLink = async () => {
+    setRetryingLink(true)
+    setLinkMessage('')
+    try {
+      const meta = await retryLinkMeta(record.id)
+      if (meta.status === 'ok') {
+        setLinkMessage('已抓取网页信息')
+        onChanged?.()
+      } else {
+        setLinkMessage('未能抓取网页信息，可稍后重试')
+      }
+    } catch (err) {
+      setLinkMessage(friendlyError(err))
+    } finally {
+      setRetryingLink(false)
     }
   }
 
@@ -168,6 +203,18 @@ export default function RecordDetail({ record, open, onClose, onChanged, onDelet
             {record.tags.map((tag) => (
               <Chip key={tag} size="small" label={tag} variant="outlined" sx={{ color: tagColor(tag) }} />
             ))}
+            {record.recurrence && (
+              <Chip
+                size="small"
+                icon={<RepeatIcon fontSize="small" />}
+                label={describeRecurrence(record.recurrence, record.remindAt)}
+                variant="outlined"
+                sx={{ '& .MuiChip-icon': { fontSize: 14 } }}
+              />
+            )}
+            {record.recurrenceParentId != null && (
+              <Chip size="small" label={`由第 ${record.recurrenceParentId} 期生成`} variant="outlined" />
+            )}
           </Box>
 
           {summary && (
@@ -193,7 +240,58 @@ export default function RecordDetail({ record, open, onClose, onChanged, onDelet
             </Typography>
           )}
 
-          {record.url && (
+          {editing && record.type === 'todo' && (
+            <RecurrenceField
+              value={recurrenceEdit}
+              onChange={setRecurrenceEdit}
+              remindAt={record.remindAt ?? null}
+            />
+          )}
+
+          {isHttpUrl(record.url) && (
+            <Box>
+              <LinkCover record={record} sx={{ maxWidth: 420 }} />
+              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                {(record.linkMeta?.site || prettyHost(record.url)) && (
+                  <Chip
+                    size="small"
+                    icon={<LinkIcon fontSize="small" />}
+                    label={record.linkMeta?.site || prettyHost(record.url)}
+                    variant="outlined"
+                    sx={{ '& .MuiChip-icon': { fontSize: 14 } }}
+                  />
+                )}
+                <Button size="small" href={record.url as string} target="_blank" rel="noreferrer">
+                  打开资料链接
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<RefreshIcon />}
+                  onClick={refetchLink}
+                  disabled={retryingLink}
+                >
+                  {retryingLink ? '抓取中…' : '重新抓取'}
+                </Button>
+              </Stack>
+              {record.linkMeta?.description && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {record.linkMeta.description}
+                </Typography>
+              )}
+              {record.linkMeta && record.linkMeta.status !== 'ok' && (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  未能抓取网页信息
+                </Typography>
+              )}
+              {linkMessage && (
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  {linkMessage}
+                </Typography>
+              )}
+            </Box>
+          )}
+          {!isHttpUrl(record.url) && record.url && (
             <Button
               variant="text"
               size="small"

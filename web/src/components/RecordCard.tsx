@@ -10,8 +10,12 @@ import LightbulbIcon from '@mui/icons-material/Lightbulb'
 import FolderIcon from '@mui/icons-material/Folder'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import LinkIcon from '@mui/icons-material/Link'
+import RepeatIcon from '@mui/icons-material/Repeat'
 import type { InfoRecord } from '@shared/types/domain'
 import { categoryColor, tagColor } from '@shared/constants/categories'
+import { describeRecurrence } from '@/lib/recurrence'
+import { isHttpUrl, prettyHost } from '@/services/linkPreviewService'
+import LinkCover from './LinkCover'
 
 const TYPE_META: Record<string, { label: string; icon: React.ReactElement }> = {
   idea: { label: '想法', icon: <LightbulbIcon fontSize="small" /> },
@@ -33,14 +37,17 @@ interface RecordCardProps {
   onClick?: () => void
 }
 
-/** 记录卡片（分类标签、摘要、时间）。 */
+/** 记录卡片（循环标识、链接封面、分类标签、摘要、时间）。 */
 export default function RecordCard({ record, onClick }: RecordCardProps) {
   const meta = TYPE_META[record.type] ?? TYPE_META.idea
+  const recurrenceLabel = record.recurrence ? describeRecurrence(record.recurrence, record.remindAt) : ''
+  const hostLabel = record.linkMeta?.site || prettyHost(record.url)
 
   return (
     <Card variant="outlined" sx={{ height: '100%' }}>
       <CardActionArea onClick={onClick} sx={{ height: '100%' }}>
         <CardContent sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <LinkCover record={record} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Chip
               size="small"
@@ -55,6 +62,15 @@ export default function RecordCard({ record, onClick }: RecordCardProps) {
             />
             {record.type === 'todo' && record.todoStatus === 'done' && (
               <Chip size="small" label="已完成" color="success" variant="outlined" sx={{ fontSize: 12 }} />
+            )}
+            {recurrenceLabel && (
+              <Chip
+                size="small"
+                icon={<RepeatIcon fontSize="small" />}
+                label={recurrenceLabel}
+                variant="outlined"
+                sx={{ fontSize: 11, '& .MuiChip-icon': { fontSize: 14 } }}
+              />
             )}
             {record.url && (
               <Box component="span" sx={{ color: 'text.secondary', display: 'inline-flex' }}>
@@ -110,6 +126,15 @@ export default function RecordCard({ record, onClick }: RecordCardProps) {
                 color={record.priority === 'high' ? 'error' : record.priority === 'medium' ? 'warning' : 'default'}
                 variant="outlined"
                 sx={{ fontSize: 11 }}
+              />
+            )}
+            {isHttpUrl(record.url) && hostLabel && (
+              <Chip
+                size="small"
+                icon={<LinkIcon fontSize="small" />}
+                label={hostLabel}
+                variant="outlined"
+                sx={{ fontSize: 11, maxWidth: 180, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
               />
             )}
           </Box>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -20,10 +20,13 @@ import {
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import AddIcon from '@mui/icons-material/Add'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { InfoRecord, TodoOrganizeResult } from '@shared/types/domain'
 import { recordService } from '@/services/recordService'
+import { recurrenceService } from '@/services/recurrenceService'
 import { aiService } from '@/services/aiService'
+import { pushNotice } from '@/store/noticeStore'
+import { describeRecurrence } from '@/lib/recurrence'
 import { friendlyError } from '@/lib/unwrap'
 import { categoryColor } from '@shared/constants/categories'
 import PageHeader from '@/components/PageHeader'
@@ -46,6 +49,7 @@ const priorityColor: Record<string, 'error' | 'warning' | 'default'> = {
 /** 待办视图。 */
 export default function TodoPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [records, setRecords] = useState<InfoRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -87,6 +91,36 @@ export default function TodoPage() {
     load(1)
   }, [])
 
+  /** 已处理的 `?record=` 参数（防清参触发重复处理）。 */
+  const handledRecordParam = useRef<string | null>(null)
+
+  // 通知点击 / 外部链接：`/todo?record=<id>` 定位并打开详情（A2）
+  useEffect(() => {
+    const raw = searchParams.get('record')
+    if (!raw) {
+      handledRecordParam.current = null
+      return
+    }
+    if (handledRecordParam.current === raw) return
+    handledRecordParam.current = raw
+    setSearchParams({}, { replace: true })
+
+    const id = Number(raw)
+    if (!Number.isInteger(id) || id <= 0) return
+    void (async () => {
+      try {
+        const target = await recordService.getRecord(id)
+        if (!target || target.isDeleted) {
+          pushNotice('该记录已删除', 'warning')
+          return
+        }
+        setDetail(target)
+      } catch {
+        pushNotice('该记录已删除', 'warning')
+      }
+    })()
+  }, [searchParams, setSearchParams])
+
   /** 一键应用合并建议：保留 keep、软删 merge 中其余待办。 */
   const applyMerge = async (g: TodoOrganizeResult['mergeGroups'][number]) => {
     setError('')
@@ -108,9 +142,25 @@ export default function TodoPage() {
   }
 
   const toggle = async (r: InfoRecord) => {
+    setError('')
     try {
-      await recordService.updateTodoStatus(r.id, r.todoStatus === 'done' ? 'pending' : 'done')
-      load()
+      if (r.todoStatus === 'done') {
+        // 取消完成：不回收已生成的下一期，仅提示
+        await recordService.updateTodoStatus(r.id, 'pending')
+        if (r.recurrenceNextId != null) showToast('下一期已生成，可自行删除')
+        await load(1)
+        return
+      }
+
+      const result = await recurrenceService.completeTodoWithRecurrence(r)
+      if (result.duplicated) {
+        showToast('该待办已完成，未重复生成')
+      } else if (result.ended) {
+        showToast('循环已结束，未生成下一期')
+      } else if (result.next) {
+        showToast(result.writeBackFailed ? '已完成并生成下一期（追溯信息稍后补全）' : '已完成并生成下一期')
+      }
+      await load(1)
     } catch (err) {
       setError(friendlyError(err))
     }
@@ -212,6 +262,22 @@ export default function TodoPage() {
                           />
                         )}
                         {r.remindAt && <Typography variant="caption" color="text.secondary">提醒 {formatRemind(r.remindAt)}</Typography>}
+                        {r.recurrence && (
+                          <Chip
+                            size="small"
+                            label={describeRecurrence(r.recurrence, r.remindAt)}
+                            variant="outlined"
+                            sx={{ fontSize: 11, height: 20 }}
+                          />
+                        )}
+                        {r.recurrenceNextId != null && (
+                          <Chip
+                            size="small"
+                            label={`下一期 #${r.recurrenceNextId}`}
+                            variant="outlined"
+                            sx={{ fontSize: 11, height: 20 }}
+                          />
+                        )}
                       </Box>
                     }
                   />

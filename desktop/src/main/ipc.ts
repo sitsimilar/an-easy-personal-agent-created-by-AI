@@ -24,6 +24,7 @@ import {
 import { getMainWindow, loadMainRemote, showMainWindow } from './main-window'
 import { readClipboardSelection } from './selection-analyzer'
 import { exportBaseDir } from './analysis-exporter'
+import { showSystemNotification } from './notifier'
 import { refreshTray } from './tray'
 
 /** C++ 工具链/调试单例（index.ts before-quit 调用 dispose 清理）。 */
@@ -264,6 +265,12 @@ export function registerIpc(orchestrator: AnalysisOrchestrator, vsMonitor: VsMon
   ipcMain.handle(IPC.cppDebugStop, (event) => {
     assertTrusted(event)
     return cppRunner.stopDebug().then(() => ({ ok: true }))
+  })
+
+  // 系统通知（P0-A）：渲染层 → 主进程原生 Notification
+  ipcMain.handle(IPC.notify, (event, payload: unknown) => {
+    if (!isTrustedSender(event)) return { ok: false, message: '来源不受信任' }
+    return showSystemNotification(payload)
   })
 
   // 供托盘/其他模块调用的悬浮窗显隐
