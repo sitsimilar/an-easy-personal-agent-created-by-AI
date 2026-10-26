@@ -178,11 +178,11 @@ function invoke(rawUrl: string | null, options: { method?: string; ip?: string }
   })
 }
 
-test('HTTP 405：非 GET 拒绝', async () => {
-  const r = await invoke('https://example.com/', { method: 'POST' })
+test('HTTP 405：非 GET/POST 方法拒绝', async () => {
+  const r = await invoke('https://example.com/', { method: 'PUT' })
   assert.equal(r.status, 405)
   assert.equal(r.body.code, 'METHOD_NOT_ALLOWED')
-  assert.ok(r.body.message && /仅支持 GET/.test(r.body.message))
+  assert.ok(r.body.message && /仅支持 GET\/POST/.test(r.body.message))
 })
 
 test('HTTP 400：缺参 / file 协议 / 非 80-443 端口', async () => {

@@ -65,6 +65,7 @@ const targets = [
   { entry: 'qa/p0-a-reminder-service.test.ts', out: 'qa/dist/p0-a-reminder-service.test.cjs', alias: webAlias },
   { entry: 'qa/p0-a-notification-provider.test.ts', out: 'qa/dist/p0-a-notification-provider.test.cjs', alias: webAlias },
   { entry: 'qa/p0-a-notification-chain.test.ts', out: 'qa/dist/p0-a-notification-chain.test.cjs', alias: {} },
+  { entry: 'qa/p0-a-permission-probe.test.ts', out: 'qa/dist/p0-a-permission-probe.test.cjs', alias: webAlias },
   { entry: 'qa/p0-a-desktop-notifier.test.ts', out: 'qa/dist/p0-a-desktop-notifier.test.cjs', alias: electronAlias },
   { entry: 'qa/p0-b-recurrence-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-adversarial.test.cjs', alias: {} },
   { entry: 'qa/p0-b-recurrence-service-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-service-adversarial.test.cjs', alias: webAlias },

@@ -35,6 +35,8 @@ const RATE_LIMIT = 30
 const RATE_WINDOW_MS = 60 * 1000
 /** url 参数长度上限。 */
 const MAX_URL_LENGTH = 2048
+/** POST 请求体上限 8KB（只承载 `{"url":"..."}`，无需更大）。 */
+const MAX_BODY_BYTES = 8 * 1024
 /** 抓取 UA。 */
 const USER_AGENT = 'PersonalAgentBot/2.11'
 /** 标题 / 描述截断长度。 */
@@ -565,20 +567,101 @@ function clientIp(req) {
 }
 
 /**
- * `GET /api/link-preview?url=<encoded>` 处理器。
- * 永远返回结构化 JSON，绝不返回原始 HTML。
+ * 读取 POST 请求体（上限 limit 字节）。
+ *
+ * - 超限：立即返回 `{ tooLarge: true }`，由调用方回 413（不继续累积内存）；
+ * - 读失败/5s 内未读完：返回 `{ error: true }`，避免挂住连接。
+ */
+function readRequestBody(req, limit) {
+  return new Promise((resolve) => {
+    let total = 0
+    const chunks = []
+    let settled = false
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+
+    const timer = setTimeout(() => finish({ error: true }), 5000)
+    if (typeof timer.unref === 'function') timer.unref()
+
+    req.on('data', (chunk) => {
+      if (settled) return
+      total += chunk.length
+      if (total > limit) {
+        finish({ tooLarge: true })
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => {
+      clearTimeout(timer)
+      finish({ raw: Buffer.concat(chunks).toString('utf8') })
+    })
+    req.on('error', () => {
+      clearTimeout(timer)
+      finish({ error: true })
+    })
+  })
+}
+
+/** 从 POST body 中取出 url（content-type 必须含 application/json）。 */
+async function readPostUrl(req, res) {
+  const contentType = String((req.headers && req.headers['content-type']) || '').toLowerCase()
+  if (!contentType.includes('application/json')) {
+    fail(res, 415, 'UNSUPPORTED_CONTENT_TYPE', '请求体必须是 application/json')
+    return null
+  }
+
+  const body = await readRequestBody(req, MAX_BODY_BYTES)
+  if (body.tooLarge) {
+    fail(res, 413, 'REQUEST_TOO_LARGE', '请求体过大（上限 8KB）')
+    return null
+  }
+  if (body.error) {
+    fail(res, 400, 'BAD_REQUEST', '读取请求体失败')
+    return null
+  }
+
+  let payload
+  try {
+    payload = JSON.parse(body.raw || '')
+  } catch {
+    fail(res, 400, 'BAD_REQUEST', '请求体不是合法 JSON')
+    return null
+  }
+
+  const url = payload && typeof payload.url === 'string' ? payload.url.trim() : ''
+  if (!url) {
+    fail(res, 400, 'BAD_REQUEST', '缺少 url 参数')
+    return null
+  }
+  return url
+}
+
+/**
+ * 链接元数据处理器。
+ *
+ * 传输方式：
+ * - `POST /api/link-preview` + JSON `{ url }`：**生产主路径**（腾讯云 WAF 会拦截
+ *   GET 查询参数里带 URL 的请求，POST body 不受影响）；
+ * - `GET /api/link-preview?url=`：本地开发/兼容路径（线上会被 WAF 拦，属已知环境限制）。
+ *
+ * 两种方式共用同一套校验链（协议/端口/DNS/重定向/预算），永远返回结构化 JSON。
  */
 async function handleLinkPreview(req, res) {
   try {
     const method = String(req.method || 'GET').toUpperCase()
-    if (method !== 'GET') {
-      fail(res, 405, 'METHOD_NOT_ALLOWED', '仅支持 GET 请求')
+    if (method !== 'GET' && method !== 'POST') {
+      fail(res, 405, 'METHOD_NOT_ALLOWED', '仅支持 GET/POST 请求')
       return
     }
 
-    const rawUrl = readQueryParam(req.url, 'url')
+    const rawUrl = method === 'POST' ? await readPostUrl(req, res) : readQueryParam(req.url, 'url')
+    // readPostUrl 已自行响应错误
     if (!rawUrl) {
-      fail(res, 400, 'BAD_REQUEST', '缺少 url 参数')
+      if (method === 'GET') fail(res, 400, 'BAD_REQUEST', '缺少 url 参数')
       return
     }
     if (rawUrl.length > MAX_URL_LENGTH) {
@@ -637,6 +720,8 @@ module.exports = {
   __resetForTest,
   __setAllowPrivateForTest,
   MAX_BYTES,
+  MAX_BODY_BYTES,
+  MAX_URL_LENGTH,
   TIMEOUT_MS,
   MAX_REDIRECTS,
   RATE_LIMIT,

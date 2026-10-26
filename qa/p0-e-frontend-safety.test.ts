@@ -73,31 +73,41 @@ function stubFetch(impl: FetchLike): void {
   globalThis.fetch = impl
 }
 
-test('C4 fetchLinkMeta：成功响应映射为 ok 元数据', async () => {
+test('C4 fetchLinkMeta：POST + JSON body 调代理（线上 WAF 只放行 POST），成功映射为 ok 元数据', async () => {
   const { fetchLinkMeta } = await import('../web/src/services/linkPreviewService')
   let calledUrl = ''
-  stubFetch((async (input: RequestInfo | URL) => {
+  let calledInit: RequestInit | undefined
+  stubFetch(((input: RequestInfo | URL, init?: RequestInit) => {
     calledUrl = String(input)
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        data: {
-          title: '标题',
-          description: '描述',
-          image: 'https://cdn.example.com/a.png',
-          site: 'example.com',
-          finalUrl: 'https://example.com/a',
-          fetchedAt: '2026-10-12T00:00:00.000Z',
-          status: 'ok',
-        },
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
+    calledInit = init
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          data: {
+            title: '标题',
+            description: '描述',
+            image: 'https://cdn.example.com/a.png',
+            site: 'example.com',
+            finalUrl: 'https://example.com/a',
+            fetchedAt: '2026-10-12T00:00:00.000Z',
+            status: 'ok',
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
     )
   }) as FetchLike)
 
   const meta = await fetchLinkMeta('https://example.com/a')
 
-  assert.match(calledUrl, /^\/api\/link-preview\?url=/)
+  // 传输契约：POST + JSON body（GET 查询参数会被腾讯云 WAF 403 拦截）
+  assert.equal(calledUrl, '/api/link-preview', '不得把 URL 放进查询参数')
+  assert.equal(calledInit?.method, 'POST')
+  const headers = (calledInit?.headers ?? {}) as Record<string, string>
+  assert.equal(headers['Content-Type'], 'application/json')
+  assert.deepEqual(JSON.parse(String(calledInit?.body)), { url: 'https://example.com/a' })
+
   assert.equal(meta.status, 'ok')
   assert.equal(meta.title, '标题')
   assert.equal(meta.description, '描述')
@@ -148,13 +158,15 @@ test('C4 fetchLinkMeta：网络异常 → NETWORK_ERROR，不抛错', async () =
   assert.equal(meta.errorCode, 'NETWORK_ERROR')
 })
 
-test('C4 fetchLinkMeta：6s 超时中止 → TIMEOUT（不永久 loading）', async (t) => {
+test('C4 fetchLinkMeta：6s 超时中止 → TIMEOUT（POST 路径，不永久 loading）', async (t) => {
   const { fetchLinkMeta } = await import('../web/src/services/linkPreviewService')
   mock.timers.enable({ apis: ['setTimeout'] })
   t.after(() => mock.timers.reset())
 
   let aborted = false
+  let method = ''
   stubFetch(((input: RequestInfo | URL, init?: RequestInit) => {
+    method = String(init?.method ?? '')
     const signal = init?.signal
     return new Promise((_resolve, reject) => {
       signal?.addEventListener('abort', () => {
@@ -170,6 +182,7 @@ test('C4 fetchLinkMeta：6s 超时中止 → TIMEOUT（不永久 loading）', as
   // 5.9s 仍未超时（服务端 5s + 1s 余量）
   mock.timers.tick(5900)
   assert.equal(aborted, false, '6s 前不应中止')
+  assert.equal(method, 'POST', '超时用例同样走 POST')
 
   mock.timers.tick(200)
   const meta = await pending
@@ -282,6 +295,14 @@ test('A 提醒候选查询：行数据经 mapRecord 归一（脏 recurrence/link
   assert.equal(record.remindAt, '2026-10-12T01:00:00.000Z')
   assert.deepEqual(record.recurrence, { freq: 'weekly', interval: 1, endDate: null, weekdays: [1] }, '脏规则被归一')
   assert.equal(record.linkMeta, null, '脏 link_meta 归一为 null')
+})
+
+test('C2 回归：link_meta 为空的历史记录不得显示「未能抓取网页信息」', () => {
+  const detail = readSource('web/src/components/RecordDetail.tsx')
+
+  // 修复后必须是「先判存在，再判状态」；旧写法 `linkMeta?.status !== 'ok'` 会把 null 也命中
+  assert.match(detail, /\{record\.linkMeta && record\.linkMeta\.status !== 'ok' && \(/)
+  assert.doesNotMatch(detail, /\{record\.linkMeta\?\.status !== 'ok' && \(/)
 })
 
 /* ------------------- C1 保存后异步回填（fire-and-forget 结果） ------------------- */

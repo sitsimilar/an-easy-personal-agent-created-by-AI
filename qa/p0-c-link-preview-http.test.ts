@@ -60,17 +60,31 @@ beforeEach(() => {
   lp.__resetForTest()
 })
 
-/** 真实 HTTP 调用预览端点。 */
+/**
+ * 真实 HTTP 调用预览端点。
+ *
+ * 默认走 **POST + JSON body**（生产主路径：线上 WAF 拦截 GET 查询参数带 URL 的请求）；
+ * 传 `{ method: 'GET' }` 可验证本地兼容路径。
+ */
 async function callPreview(
   service: RunningServer,
   targetUrl: string | null,
-  options: { method?: string; headers?: Record<string, string> } = {},
+  options: { method?: string; headers?: Record<string, string>; rawBody?: string } = {},
 ): Promise<PreviewResponse> {
-  const query = targetUrl === null ? '' : `?url=${encodeURIComponent(targetUrl)}`
-  const res = await fetch(`${service.base}/api/link-preview${query}`, {
-    method: options.method ?? 'GET',
-    headers: options.headers,
-  })
+  const method = options.method ?? 'POST'
+  const headers: Record<string, string> = { ...(options.headers ?? {}) }
+  const init: RequestInit = { method, headers }
+  let endpoint = `${service.base}/api/link-preview`
+
+  if (method === 'GET') {
+    const query = targetUrl === null ? '' : `?url=${encodeURIComponent(targetUrl)}`
+    endpoint += query
+  } else if (method === 'POST') {
+    if (!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json'
+    init.body = options.rawBody ?? JSON.stringify({ url: targetUrl ?? '' })
+  }
+
+  const res = await fetch(endpoint, init)
   const raw = await res.text()
   return {
     status: res.status,
@@ -231,12 +245,68 @@ test('HTTP 502：上游 500', async () => {  const fixture = await listen((_req,
   assert.equal(r.body.code, 'UPSTREAM_ERROR')
 })
 
-test('HTTP 405：POST 拒绝', async () => {  const service = await startPreviewService()
+test('HTTP 405：PUT 等非 GET/POST 方法被拒', async () => {
+  const service = await startPreviewService()
 
-  const r = await callPreview(service, 'https://example.com/', { method: 'POST' })
+  const r = await callPreview(service, 'https://example.com/', { method: 'PUT' })
 
   assert.equal(r.status, 405)
   assert.equal(r.body.code, 'METHOD_NOT_ALLOWED')
+})
+
+test('GET 兼容路径：本地开发仍可用（线上 WAF 会拦，属已知环境限制）', async () => {
+  const fixture = await startHtmlFixture(
+    '<html><head><meta property="og:title" content="GET 兼容页"></head></html>',
+  )
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  const r = await callPreview(service, `${fixture.base}/legacy`, { method: 'GET' })
+
+  assert.equal(r.status, 200)
+  assert.equal(r.body.data?.title, 'GET 兼容页')
+})
+
+test('POST 400：坏 JSON / 缺 url', async () => {
+  const service = await startPreviewService()
+
+  const badJson = await callPreview(service, null, { rawBody: '{not-json' })
+  assert.equal(badJson.status, 400)
+  assert.equal(badJson.body.code, 'BAD_REQUEST')
+  assert.ok(badJson.body.message && /JSON/.test(badJson.body.message))
+
+  const emptyObject = await callPreview(service, null, { rawBody: '{}' })
+  assert.equal(emptyObject.status, 400)
+  assert.equal(emptyObject.body.code, 'BAD_REQUEST')
+
+  const notString = await callPreview(service, null, { rawBody: '{"url":123}' })
+  assert.equal(notString.status, 400)
+  assert.equal(notString.body.code, 'BAD_REQUEST')
+})
+
+test('POST 413：请求体超过 8KB', async () => {
+  const service = await startPreviewService()
+  // 用合法 JSON 但填充超 8KB，确保触发的是体积限制而非解析错误
+  const bigBody = JSON.stringify({ url: 'https://example.com/', pad: 'x'.repeat(9 * 1024) })
+  assert.ok(Buffer.byteLength(bigBody) > 8 * 1024)
+
+  const r = await callPreview(service, null, { rawBody: bigBody })
+
+  assert.equal(r.status, 413)
+  assert.equal(r.body.code, 'REQUEST_TOO_LARGE')
+  assert.ok(r.body.message && /8KB/.test(r.body.message))
+})
+
+test('POST 415：content-type 非 application/json', async () => {
+  const service = await startPreviewService()
+
+  const r = await callPreview(service, null, {
+    rawBody: JSON.stringify({ url: 'https://example.com/' }),
+    headers: { 'Content-Type': 'text/plain' },
+  })
+
+  assert.equal(r.status, 415)
+  assert.equal(r.body.code, 'UNSUPPORTED_CONTENT_TYPE')
 })
 
 test('HTTP 400：缺参 / file 协议 / 非 80-443 端口', async () => {

@@ -73,6 +73,10 @@ function readErrorCode(payload: unknown, fallback: string): string {
 
 /**
  * 抓取单个链接的元数据；**永不抛错**。
+ *
+ * 传输方式为 `POST /api/link-preview` + JSON `{ url }`：
+ * 线上腾讯云 WAF 会拦截「GET 查询参数里带完整 URL」的请求（直接 403 拦截页），
+ * 而 POST body 可正常到达应用；服务端仍保留 GET 作为本地开发/兼容路径。
  */
 export async function fetchLinkMeta(url: string): Promise<LinkMeta> {
   if (!isHttpUrl(url)) return failedMeta('INVALID_URL')
@@ -84,9 +88,13 @@ export async function fetchLinkMeta(url: string): Promise<LinkMeta> {
       : null
 
   try {
-    const res = await fetch(`${ENDPOINT}?url=${encodeURIComponent(url)}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ url }),
       signal: controller?.signal,
     })
 

@@ -86,10 +86,17 @@ test('真实 server.js：GET /version.json 返回 package.json 版本号', async
   assert.equal(body.version, expected)
 })
 
-test('真实 server.js：POST /api/link-preview → 405', async () => {
-  const res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent('https://example.com/')}`, {
+/** POST 预览端点（生产主路径：WAF 只放行 body，不放行 GET 查询参数里的 URL）。 */
+async function postPreview(url: string | null): Promise<Response> {
+  return fetch(`${BASE}/api/link-preview`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url ?? '' }),
   })
+}
+
+test('真实 server.js：PUT /api/link-preview → 405（POST 已是合法主路径）', async () => {
+  const res = await fetch(`${BASE}/api/link-preview`, { method: 'PUT' })
   const body = (await res.json()) as { ok: boolean; code?: string }
 
   assert.equal(res.status, 405)
@@ -97,8 +104,54 @@ test('真实 server.js：POST /api/link-preview → 405', async () => {
   assert.equal(body.code, 'METHOD_NOT_ALLOWED')
 })
 
+test('真实 server.js：POST 缺 url → 400 BAD_REQUEST', async () => {
+  const res = await postPreview(null)
+  const body = (await res.json()) as { code?: string; message?: string }
+
+  assert.equal(res.status, 400)
+  assert.equal(body.code, 'BAD_REQUEST')
+  assert.ok(body.message, '应带中文原因')
+})
+
+test('真实 server.js：POST 坏 JSON → 400 BAD_REQUEST', async () => {
+  const res = await fetch(`${BASE}/api/link-preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{not-json',
+  })
+  const body = (await res.json()) as { code?: string }
+
+  assert.equal(res.status, 400)
+  assert.equal(body.code, 'BAD_REQUEST')
+})
+
+test('真实 server.js：POST http://127.0.0.1/ → 403 BLOCKED_HOST（C3 主机层校验）', async () => {
+  const res = await postPreview('http://127.0.0.1/')
+  const body = (await res.json()) as { code?: string; message?: string }
+
+  assert.equal(res.status, 403)
+  assert.equal(body.code, 'BLOCKED_HOST')
+  assert.ok(body.message, '应带中文原因')
+})
+
+test('真实 server.js：POST file:// → 400 UNSUPPORTED_PROTOCOL（C3）', async () => {
+  const res = await postPreview('file:///etc/passwd')
+  const body = (await res.json()) as { code?: string }
+
+  assert.equal(res.status, 400)
+  assert.equal(body.code, 'UNSUPPORTED_PROTOCOL')
+})
+
+test('真实 server.js：POST 非 80/443 端口 → 400 PORT_NOT_ALLOWED（C3）', async () => {
+  const res = await postPreview('http://example.com:8080/')
+  const body = (await res.json()) as { code?: string }
+
+  assert.equal(res.status, 400)
+  assert.equal(body.code, 'PORT_NOT_ALLOWED')
+})
+
 test('真实 server.js：url 指向本机（自带端口）→ 4xx 拒绝，中文原因（C3）', async () => {
-  const res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent(`${BASE}/`)}`)
+  const res = await postPreview(`${BASE}/`)
   const body = (await res.json()) as { ok: boolean; code?: string; message?: string }
 
   // 端口校验先于主机校验：3410 不是 80/443 → 400 PORT_NOT_ALLOWED（同样满足 C3「4xx + 中文原因」）
@@ -108,37 +161,12 @@ test('真实 server.js：url 指向本机（自带端口）→ 4xx 拒绝，中�
   assert.match(String(body.message), /[\u4e00-\u9fa5]/, '必须带中文原因')
 })
 
-test('真实 server.js：url=127.0.0.1（默认端口）→ 403 BLOCKED_HOST（C3 主机层校验）', async () => {
+test('真实 server.js：GET 兼容路径仍可用（本地开发），127.0.0.1 → 403', async () => {
   const res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent('http://127.0.0.1/')}`)
-  const body = (await res.json()) as { ok: boolean; code?: string; message?: string }
+  const body = (await res.json()) as { code?: string }
 
   assert.equal(res.status, 403)
   assert.equal(body.code, 'BLOCKED_HOST')
-  assert.ok(body.message, '应带中文原因')
-})
-
-test('真实 server.js：file:// → 400 UNSUPPORTED_PROTOCOL（C3）', async () => {
-  const res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent('file:///etc/passwd')}`)
-  const body = (await res.json()) as { code?: string }
-
-  assert.equal(res.status, 400)
-  assert.equal(body.code, 'UNSUPPORTED_PROTOCOL')
-})
-
-test('真实 server.js：非 80/443 端口 → 400 PORT_NOT_ALLOWED（C3）', async () => {
-  const res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent('http://example.com:8080/')}`)
-  const body = (await res.json()) as { code?: string }
-
-  assert.equal(res.status, 400)
-  assert.equal(body.code, 'PORT_NOT_ALLOWED')
-})
-
-test('真实 server.js：缺少 url 参数 → 400 BAD_REQUEST', async () => {
-  const res = await fetch(`${BASE}/api/link-preview`)
-  const body = (await res.json()) as { code?: string }
-
-  assert.equal(res.status, 400)
-  assert.equal(body.code, 'BAD_REQUEST')
 })
 
 test('真实 server.js：GET /api/link-preview 永不返回原始 HTML（仅 JSON）', async () => {
@@ -149,10 +177,13 @@ test('真实 server.js：GET /api/link-preview 永不返回原始 HTML（仅 JSO
   assert.doesNotMatch(raw, /<html|<meta/i)
 })
 
-test('公开站点成功路径（https://example.com）', async (t) => {
+test('公开站点成功路径（POST https://example.com）', async (t) => {
   let res: Response
   try {
-    res = await fetch(`${BASE}/api/link-preview?url=${encodeURIComponent('https://example.com/')}`, {
+    res = await fetch(`${BASE}/api/link-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com/' }),
       signal: AbortSignal.timeout(15_000),
     })
   } catch {

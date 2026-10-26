@@ -136,8 +136,9 @@ export async function getReminderSettings(force = false): Promise<ReminderSettin
     settingsCache = { value, ts: now }
     return value
   } catch {
-    // 拉取失败：沿用缓存（若有），否则默认值；下个 tick 重试
-    return settingsCache?.value ?? { ...DEFAULT_REMINDER_SETTINGS }
+    // 拉取失败：沿用缓存（若有）；无缓存时 fail-closed —— 读不到设置就不发，
+    // 与设计 §8.3「取更不打扰策略」一致（默认值本身仍是「开」）；下个 tick 重试
+    return settingsCache?.value ?? { ...DEFAULT_REMINDER_SETTINGS, notifyEnabled: false }
   }
 }
 

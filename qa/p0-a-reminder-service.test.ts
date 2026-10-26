@@ -321,6 +321,30 @@ test('A6 桌面通道失败：降级为应用内提示，不抛错', async () =>
   assert.equal(env.sent.length, 1, '失败的那次不记为已发送')
 })
 
+test('P2-1 回归：账号尚无 settings 行（新账号）→ 按默认「开」发送通知', async () => {
+  // 修复前：UI 显示开关为「开」，调度器默认「关」→ 到点静默不弹（A1 会被误判失败）
+  // 修复后：调度器默认与 DB `notify_enabled DEFAULT true` 对齐 → 正常发送
+  const env = await runTick(null as unknown as Record<string, unknown>, [todoRow({ id: 54 })], at('10:00'))
+
+  assert.equal(env.sent.length, 1, '无 settings 行时默认应开启并发送通知')
+  assert.equal(env.sent[0].recordId, 54)
+})
+
+test('已知行为（fail-closed）：设置拉取失败且无缓存 → 不发通知', async () => {
+  // 说明：默认总开关为「开」（P2-1），但 catch 分支显式把无缓存兜底降级为 notifyEnabled:false（P3-3）：
+  // 读不到设置就退化为「不发」，与设计 §8.3「取更不打扰策略」一致，避免已关闭通知的用户被误打扰。
+  // 有缓存时仍沿用缓存（见上一条用例）。
+  const env = installEnv()
+  __resetDbQueue()
+  __queueDbResults([{ data: null, error: new Error('settings down') }, { data: [todoRow({ id: 55 })] }])
+  reminderService.invalidateSettingsCache()
+  setNow(at('10:00'))
+
+  await reminderService.tickNow()
+
+  assert.equal(env.sent.length, 0, '无缓存 + 设置拉取失败时应 fail-closed（不发通知）')
+})
+
 test('调度器静默容错：云端查询抛错不影响后续（不向外抛）', async () => {
   installEnv()
   __resetDbQueue()
