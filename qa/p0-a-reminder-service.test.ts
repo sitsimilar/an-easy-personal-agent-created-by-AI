@@ -345,6 +345,20 @@ test('已知行为（fail-closed）：设置拉取失败且无缓存 → 不发�
   assert.equal(env.sent.length, 0, '无缓存 + 设置拉取失败时应 fail-closed（不发通知）')
 })
 
+test('P3-3 边界：设置拉取失败但**有缓存** → 沿用缓存（不因 fail-closed 停发）', async () => {
+  // 第一次 tick 建立设置缓存（notifyEnabled=true）
+  const env = await runTick(settingsRow(), [todoRow({ id: 56 })], at('10:00'))
+  assert.equal(env.sent.length, 1)
+
+  // 6 分钟后缓存过期 + 设置查询失败：应沿用缓存值（true）继续发送，而不是退化为不发
+  __resetDbQueue()
+  __queueDbResults([{ data: null, error: new Error('settings down') }, { data: [todoRow({ id: 57 })] }])
+  setNow(at('10:00') + 6 * 60_000)
+  await reminderService.tickNow()
+
+  assert.equal(env.sent.length, 2, '有缓存时应沿用缓存，fail-closed 只作用于「无缓存」')
+})
+
 test('调度器静默容错：云端查询抛错不影响后续（不向外抛）', async () => {
   installEnv()
   __resetDbQueue()

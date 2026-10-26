@@ -70,6 +70,8 @@ const targets = [
   { entry: 'qa/p0-b-recurrence-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-adversarial.test.cjs', alias: {} },
   { entry: 'qa/p0-b-recurrence-service-adversarial.test.ts', out: 'qa/dist/p0-b-recurrence-service-adversarial.test.cjs', alias: webAlias },
   { entry: 'qa/p0-c-link-preview-http.test.ts', out: 'qa/dist/p0-c-link-preview-http.test.cjs', alias: {} },
+  { entry: 'qa/p0-c-transport-post.test.ts', out: 'qa/dist/p0-c-transport-post.test.cjs', alias: {} },
+  { entry: 'qa/p0-c-domain-resolution-regression.test.ts', out: 'qa/dist/p0-c-domain-resolution-regression.test.cjs', alias: {} },
   { entry: 'qa/p0-c-server-smoke.test.ts', out: 'qa/dist/p0-c-server-smoke.test.cjs', alias: {} },
   { entry: 'qa/p0-e-frontend-safety.test.ts', out: 'qa/dist/p0-e-frontend-safety.test.cjs', alias: webAlias },
 ]

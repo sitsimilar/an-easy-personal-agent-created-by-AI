@@ -36,7 +36,8 @@
 |---------|---------|--------|
 | `qa/reminder-schedule.test.ts` | `web/src/lib/reminder-schedule.ts` | 免打扰跨零点、提前量、12h 丢弃、去重键、时区参数化 |
 | `qa/p0-a-reminder-schedule-adversarial.test.ts` | 同上 | **边界值对抗**：22:00/21:59/08:00/07:59、`start===end`、跨零点 release 归属、恰好 12h vs 12h+1ms、lead 0/10/负值、键稳定性 |
-| `qa/p0-a-reminder-service.test.ts` | `web/src/services/reminderService.ts` | **调度器集成**：总开关关闭短路、到点通知、去重键落 localStorage、免打扰 23:00→08:00 补发、超 12h 丢弃、提前量、空标题兜底、通道失败不抛错 |
+| `qa/p0-a-reminder-service.test.ts` | `web/src/services/reminderService.ts` | **调度器集成**：总开关关闭短路、到点通知、去重键落 localStorage、免打扰 23:00→08:00 补发、超 12h 丢弃、提前量、空标题兜底、通道失败不抛错、无 settings 行默认开、fail-closed 与「有缓存仍沿用」边界 |
+| `qa/p0-a-permission-probe.test.ts` | 同上 | **权限探测补丁**：默认权限态每会话只请求一次（第二次 tick 不再请求）、实现约束静态核对、默认值与 DB 默认一致 |
 | `qa/p0-a-notification-provider.test.ts` | `web/src/services/notification.ts` | desktop > web > inapp 择优、权限被拒降级且 `ok:false`、Web 点击回传 recordId、requestPermission 容错 |
 | `qa/p0-a-desktop-notifier.test.ts` | `desktop/src/main/notifier.ts` | 入参校验矩阵、`isSupported()` 分支、show()、点击→`showMainWindow()`+`desktop:notify-clicked` |
 | `qa/p0-a-notification-chain.test.ts` | 桌面 IPC/preload/主进程 + Layout/ReminderScheduler/TodoPage/SettingsPage | **静态链路核对**（A1/A2 无法在无 GUI 环境实机点验时的替代证据） |
@@ -45,9 +46,33 @@
 | `qa/recurrence-service.test.ts` | `web/src/services/recurrenceService.ts` | 条件更新 0 行幂等、正常推进、规则结束、补偿、回写失败 |
 | `qa/p0-b-recurrence-service-adversarial.test.ts` | 同上 | **写入载荷逐字段核对**：字段复制、remind_at 精确续期、parent_id、next_id 回写、0 行时无任何写操作 |
 | `qa/link-preview.test.ts` | `server/link-preview.js` | SSRF 地址矩阵、OG 解析、限流、错误码（fake req/res） |
-| `qa/p0-c-link-preview-http.test.ts` | 同上 | **真实 HTTP 层**：node:http 起 fixture + 预览服务，200/413/415/404/502/504、重定向逐跳复验与 3 跳上限、429 |
+| `qa/p0-c-link-preview-http.test.ts` | 同上 | **真实 HTTP 层**：node:http 起 fixture + 预览服务，200/413/415/404/502/504、重定向逐跳复验与 3 跳上限、429（默认走 POST，`{method:'GET'}` 验兼容路径） |
+| `qa/p0-c-transport-post.test.ts` | 同上 | **传输层改造（GET→POST）**：Content-Type 判定（含 charset/大写/缺失/错误类型）、8KB 请求体精确边界、非法载荷不 500、**SSRF 在 GET/POST 下结果一致**、缓存与限流跨传输共享、OPTIONS/HEAD→405 |
+| `qa/p0-c-domain-resolution-regression.test.ts` | `server/link-preview.js` | **域名解析回归（线上 502 事故钉死）**：域名 + 可注入 DNS（`__setLookupForTest`）打通、IPv6 不可达时回退 IPv4、全地址不可达→502 结构化 JSON、地址回退不污染 HTTP 语义（404 不漂移成 502 且只外呼 1 次）、DNS 返回私网→403 护栏 |
 | `qa/p0-c-server-smoke.test.ts` | `server.js` | **真实启动部署服务**（PORT=3410）：静态托管、`/version.json`、代理路由优先级、405/400/403 拒绝 |
 | `qa/p0-e-frontend-safety.test.ts` | `LinkCover`/`RecordDetail`/`linkPreviewService`/`recordService` | C1/C4/C5/C6：封面 http(s) 守卫 + onError 隐藏 + 16:9、6s 超时降级、fire-and-forget 静态验证、标题回填不覆盖、`listReminderCandidates` 查询链 |
+
+## 硬规则（踩坑沉淀，写用例时必须遵守）
+
+### R1. SSRF / 钉 IP 的本地桩禁止只用 IP 字面量
+
+**禁止**把 SSRF 相关用例的本地桩写成 `http://127.0.0.1:PORT` 就当作已覆盖。IP 字面量会让 `net` 直接跳过 `lookup`/DNS 解析，等于把「DNS 解析 + 地址钉扎 + 跳不可达地址」整段逻辑从测试覆盖里摘掉，而且测出来还是绿的。
+
+必须至少保留一条「**域名 + 可注入 DNS**」的路径：
+
+```ts
+const setter = lp.__setLookupForTest          // (hostname) => Promise<Array<{address, family}>>
+setter(async () => [{ address: '127.0.0.1', family: 4 }])
+lp.__setAllowPrivateForTest(true)             // 桩在私网，需显式放行
+// URL 里必须是域名，不能是 127.0.0.1
+await post(svc, `http://example.test:${port}/`)
+```
+
+参考实现：`qa/p0-c-domain-resolution-regression.test.ts`。
+
+**为什么写这条**：2026-10 线上 P0-C（链接元数据）**全量 502**。根因是 `server/link-preview.js` 的 `lookup` 钩子回调写成了单值形式 `cb(null, pinned.address, pinned.family)`，而 Node ≥ 20 在 `module.request` 内部以 `{ all: true }` 调用 lookup、**要求回调返回数组**，于是任何**域名**目标在建连前就抛 `ERR_INVALID_IP_ADDRESS` → 502。线上真实目标（`https://example.com` 之类）全是域名，所以整条能力全线不可用。
+
+而当时 `qa/p0-c-link-preview-http.test.ts` / `qa/p0-c-transport-post.test.ts` 是全绿的 —— 因为它们所有桩都是 `http://127.0.0.1:PORT`，IP 字面量下 `net` 根本不调 lookup，缺陷被完全绕过。**规则缺失的地方，测试绿灯不代表覆盖，只代表盲区。**
 
 ## 复跑方式
 
@@ -59,6 +84,12 @@
 cd D:/司凤项目/personal-agent
 node qa/run-tests.mjs
 ```
+
+> ⚠️ **跑 P0-C 相关用例前必须清掉代理变量**，见下文「说明」最后一条。带代理时的等价命令：
+>
+> ```bash
+> env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy node qa/run-tests.mjs
+> ```
 
 ### 方式二：bash 脚本（等价封装）
 
@@ -93,3 +124,4 @@ cd desktop && npx tsc --noEmit
 - 测试使用 Node 内置 `node:test` + `node:assert/strict`，无额外测试框架依赖。
 - `qa/p0-c-server-smoke.test.ts` 会占用端口 **3410** 并启动 `node server.js` 子进程，运行前请确保该端口空闲、`web/dist` 已构建（缺失时 server.js 会自动构建，耗时更长）。
 - `qa/p0-c-server-smoke.test.ts` 中的公网用例（`https://example.com`）在无外网环境会自动 `skip`（记为「未验证」而非失败）。
+- **P0-C 用例必须在「无代理」环境跑**：若 shell 里设了 `HTTP_PROXY`/`HTTPS_PROXY`/`http_proxy`/`https_proxy`/`ALL_PROXY`/`all_proxy`，`server/link-preview.js` 的 `requestOnce` 会走**代理分支**、绕过 `lookup` 直连路径，域名类用例（尤其 `p0-c-domain-resolution-regression.test.ts` 的 1–4）就测不到要钉的代码，结果会变成「既不是修复前该失败、也不是修复后该通过」的第三种无意义状态（假绿或误红）。开跑前自检：`env | grep -i proxy` 应只剩 `CODEBUDDY_*` 这类无关变量。

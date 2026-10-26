@@ -10,10 +10,24 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import lp from '../server/link-preview.js'
 
-const { isPrivateAddress, isBlockedHostname, parseOg, resolveImageUrl, createRateLimiter, handleLinkPreview } = lp
+const { isPrivateAddress, isBlockedHostname, parseOg, resolveImageUrl, createRateLimiter, handleLinkPreview, resolveProxy } = lp
+
+/**
+ * 代理环境变量：测试默认清空（桩服务都在 127.0.0.1，若本机配了 https_proxy 会被真的转发出去）。
+ * 代理路径的用例自己临时设置，`beforeEach` 统一复位。
+ */
+const PROXY_ENV_KEYS = ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+const savedProxyEnv = new Map<string, string | undefined>(PROXY_ENV_KEYS.map((key) => [key, process.env[key]]))
+
+function clearProxyEnv(): void {
+  for (const key of PROXY_ENV_KEYS) delete process.env[key]
+}
+
+clearProxyEnv()
 
 beforeEach(() => {
   lp.__resetForTest()
+  clearProxyEnv()
 })
 
 /* ----------------------------- 地址判定矩阵 ----------------------------- */
@@ -147,7 +161,7 @@ test('createRateLimiter：窗口内超限拒绝，reset 后恢复', () => {
 /** 构造假 req/res 直接调用 handler。 */
 interface FakeResponse {
   status: number
-  body: { ok: boolean; code?: string; message?: string; data?: Record<string, unknown> }
+  body: { ok: boolean; code?: string; message?: string; data?: Record<string, unknown>; viaProxy?: boolean }
 }
 
 function invoke(rawUrl: string | null, options: { method?: string; ip?: string } = {}): Promise<FakeResponse> {
@@ -261,6 +275,12 @@ const stubServers: StubServer[] = []
 
 after(async () => {
   await Promise.all(stubServers.map((s) => s.close()))
+  // 还原代理环境变量（保持进程环境与进入时一致）
+  for (const key of PROXY_ENV_KEYS) {
+    const value = savedProxyEnv.get(key)
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
 })
 
 async function createStub(handler: (req: http.IncomingMessage, res: http.ServerResponse) => void): Promise<StubServer> {
@@ -294,6 +314,7 @@ test('HTTP 200：成功解析 OG 并回写最终 URL', async () => {
   assert.equal(r.body.data?.title, '桩页面')
   assert.equal(r.body.data?.image, `${stub.base}/cover.png`)
   assert.equal(r.body.data?.site, '127.0.0.1')
+  assert.equal(r.body.data?.viaProxy, false, '未配置代理时应为直连')
 
   // 缓存：同 URL 第二次不再打到桩
   const before = stub.hits()
@@ -369,4 +390,132 @@ test('重定向到内网主机名：逐跳复验后拒绝', async () => {
   const r = await invoke(`${stub.base}/jump`)
   assert.equal(r.status, 403)
   assert.equal(r.body.code, 'BLOCKED_HOST')
+})
+
+/* -------------------------------- 代理支持 -------------------------------- */
+
+test('resolveProxy：无配置 / 空白值 → null（直连）', () => {
+  assert.equal(resolveProxy('https:'), null)
+  assert.equal(resolveProxy('http:'), null)
+
+  process.env.HTTPS_PROXY = '   '
+  process.env.HTTP_PROXY = ''
+  assert.equal(resolveProxy('https:'), null, '空白值按未配置处理')
+  assert.equal(resolveProxy('http:'), null)
+})
+
+test('resolveProxy：按目标协议选变量，HTTPS_PROXY 不串用到 http 目标', () => {
+  process.env.HTTPS_PROXY = 'http://127.0.0.1:1111'
+  assert.deepEqual(resolveProxy('https:'), { host: '127.0.0.1', port: 1111, auth: null })
+  assert.equal(resolveProxy('http:'), null, 'http 目标不应读 HTTPS_PROXY')
+
+  process.env.HTTP_PROXY = 'http://127.0.0.1:2222'
+  assert.deepEqual(resolveProxy('http:'), { host: '127.0.0.1', port: 2222, auth: null })
+})
+
+test('resolveProxy：小写变量可用，空值降级到下一个候选', () => {
+  // 注意：Windows 的 process.env 大小写不敏感（HTTPS_PROXY 与 https_proxy 是同一个变量），
+  // 因此「大写优先于小写」只在非 Windows 上可验证；两者的读取本身都覆盖到了。
+  process.env.https_proxy = 'http://127.0.0.1:3333'
+  assert.equal((resolveProxy('https:') as { port: number }).port, 3333, '小写变量应可用')
+
+  if (process.platform !== 'win32') {
+    process.env.HTTPS_PROXY = 'http://127.0.0.1:4444'
+    assert.equal((resolveProxy('https:') as { port: number }).port, 4444, 'HTTPS_PROXY 优先于 https_proxy')
+    delete process.env.HTTPS_PROXY
+  }
+
+  // 空值降级：HTTPS_PROXY/https_proxy 为空 → 回落到 ALL_PROXY
+  process.env.HTTPS_PROXY = '   '
+  delete process.env.https_proxy
+  process.env.ALL_PROXY = 'http://127.0.0.1:5555'
+  assert.equal((resolveProxy('https:') as { port: number }).port, 5555, '回落到 ALL_PROXY')
+  assert.equal((resolveProxy('http:') as { port: number }).port, 5555, 'http 目标亦可回落 ALL_PROXY')
+})
+
+test('resolveProxy：user:pass → Basic 认证头；无端口默认 80', () => {
+  process.env.HTTPS_PROXY = 'http://alice:s3cr3t@proxy.local'
+  const proxy = resolveProxy('https:')
+  assert.deepEqual(proxy, {
+    host: 'proxy.local',
+    port: 80,
+    auth: `Basic ${Buffer.from('alice:s3cr3t').toString('base64')}`,
+  })
+})
+
+test('resolveProxy：坏 URL / 非 http scheme / 缺主机 → null（按直连处理）', () => {
+  for (const bad of ['not-a-url', 'socks5://127.0.0.1:1080', 'https://127.0.0.1:8443', 'http://', 'http://h:70000']) {
+    process.env.HTTPS_PROXY = bad
+    assert.equal(resolveProxy('https:'), null, `${bad} 应视为解析失败`)
+  }
+})
+
+test('代理（HTTP）：absolute-form 转发 + Host / Proxy-Authorization，viaProxy=true', async () => {
+  let seenUrl = ''
+  let seenHost = ''
+  let seenAuth = ''
+
+  const origin = await createStub((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' })
+    res.end('<html><head><title>不该被直连访问</title></head></html>')
+  })
+  const proxy = await createStub((req, res) => {
+    seenUrl = String(req.url)
+    seenHost = String(req.headers.host)
+    seenAuth = String(req.headers['proxy-authorization'] ?? '')
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+    res.end('<html><head><meta property="og:title" content="经代理抓到的页面"></head></html>')
+  })
+  enablePrivateForTest()
+
+  const proxyPort = Number(new URL(proxy.base).port)
+  process.env.HTTP_PROXY = `http://user:pass@127.0.0.1:${proxyPort}`
+
+  const r = await invoke(`${origin.base}/page`)
+  assert.equal(r.status, 200)
+  assert.equal(r.body.data?.title, '经代理抓到的页面')
+  assert.equal(r.body.data?.viaProxy, true, '应标记为走代理')
+  assert.equal(seenUrl, `${origin.base}/page`, '代理收到的应是 absolute-form 请求行')
+  assert.equal(seenHost, new URL(origin.base).host, 'Host 头应保留目标站点')
+  assert.equal(seenAuth, `Basic ${Buffer.from('user:pass').toString('base64')}`, '应带 Basic 代理认证')
+  assert.equal(origin.hits(), 0, '不应绕过代理直连目标')
+})
+
+test('代理（HTTPS）：CONNECT 目标用已校验 IP，代理拒绝 → 502 + viaProxy=true', async () => {
+  const seen = { method: '', line: '', host: '' }
+
+  // CONNECT 请求走 server 的 'connect' 事件，普通 request handler 收不到
+  const server = http.createServer((_req, res) => {
+    res.writeHead(405)
+    res.end()
+  })
+  server.on('connect', (req, socket) => {
+    seen.method = String(req.method)
+    seen.line = String(req.url)
+    seen.host = String(req.headers.host)
+    socket.write('HTTP/1.1 500 CONNECT_FAILED\r\n\r\n')
+    socket.destroy()
+  })
+  const proxyPort = await new Promise<number>((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port))
+  })
+  stubServers.push({
+    base: `http://127.0.0.1:${proxyPort}`,
+    hits: () => 0,
+    close: () => new Promise((done) => server.close(() => done())),
+  })
+
+  enablePrivateForTest()
+  process.env.HTTPS_PROXY = `http://127.0.0.1:${proxyPort}`
+
+  const target = 'https://127.0.0.1:8443/secret'
+  const r = await invoke(target)
+  assert.equal(r.status, 502)
+  assert.equal(r.body.code, 'UPSTREAM_ERROR')
+  assert.equal(r.body.viaProxy, true, '失败响应也应标记走代理')
+  assert.match(String(r.body.message), /代理/, '应提示代理相关原因')
+  assert.equal(seen.method, 'CONNECT')
+  assert.equal(seen.line, '127.0.0.1:8443', 'CONNECT 目标必须是已校验 IP，不能是域名')
+  assert.equal(seen.host, '127.0.0.1:8443')
+  assert.doesNotMatch(String(r.body.message), /127\.0\.0\.1|8443/, '错误提示不得暴露代理/目标地址')
 })

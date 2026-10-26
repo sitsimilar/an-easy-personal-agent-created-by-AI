@@ -11,6 +11,9 @@
  *   5. 重定向 ≤3 跳，每跳重跑 2/3/4；
  *   6. 预算：单次 5s 总超时（504）、响应累计 >512KB 立即中断（413）、只接受 HTML（415）；
  *   7. 只读流不落盘，成功结果缓存 10 分钟（上限 200 条），失败不缓存。
+ *   8. 出网可经 HTTP 代理（读 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 等环境变量）：
+ *      HTTPS 目标用 CONNECT 到**已校验 IP** 后再自行 TLS（保留 DNS 钉扎）；
+ *      HTTP 目标用 absolute-form 交给代理（无法端到端钉 IP，仅保留前置 DNS 校验）。
  *
  * 注：`__setAllowPrivateForTest` 仅用于单测打本地桩，生产默认关闭。
  */
@@ -19,6 +22,7 @@ const dns = require('dns')
 const http = require('http')
 const https = require('https')
 const net = require('net')
+const tls = require('tls')
 
 /** 响应体上限 512KB。 */
 const MAX_BYTES = 512 * 1024
@@ -42,9 +46,22 @@ const USER_AGENT = 'PersonalAgentBot/2.11'
 /** 标题 / 描述截断长度。 */
 const TITLE_MAX = 200
 const DESCRIPTION_MAX = 300
+/** 代理端口上限（仅做合法性兜底）。 */
+const PROXY_PORT_MAX = 65535
+
+/**
+ * 各目标协议可用的代理环境变量（按优先级，大小写都认）。
+ * 部署沙箱出网必须经代理，而 Node 原生 http/https 不读这些变量，故此处自行实现。
+ */
+const PROXY_ENV_KEYS = {
+  'https:': ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy'],
+  'http:': ['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'],
+}
 
 /** 仅测试用：允许私网地址（默认关闭，生产必须为 false）。 */
 let allowPrivateForTest = false
+/** 仅测试用：替换真实 DNS 解析，便于用「域名 + 本地桩」验证钉 IP 逻辑。 */
+let lookupForTest = null
 
 /* ----------------------------- 地址判定 ----------------------------- */
 
@@ -294,6 +311,100 @@ function parseOg(html, finalUrl) {
   return { title, description, image, site }
 }
 
+/* ------------------------------- 代理配置 ------------------------------- */
+
+/**
+ * 解析单个代理地址（仅支持 `http://[user:pass@]host:port`）。
+ *
+ * 代理本身一律按 **HTTP 代理** 处理（不支持 socks/hTTPS 代理协议），
+ * 因此 `https:` / `socks5:` 等 scheme 视为解析失败。
+ *
+ * @param {string} raw
+ * @returns {{host: string, port: number, auth: string|null}|null} 解析失败返回 null
+ */
+function parseProxyUrl(raw) {
+  let parsed
+  try {
+    parsed = new URL(String(raw).trim())
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:') return null
+
+  const host = stripBrackets(parsed.hostname)
+  if (!host) return null
+
+  const port = parsed.port ? Number(parsed.port) : 80
+  if (!Number.isInteger(port) || port <= 0 || port > PROXY_PORT_MAX) return null
+
+  let auth = null
+  if (parsed.username || parsed.password) {
+    let decoded = ''
+    try {
+      decoded = `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`
+    } catch {
+      return null
+    }
+    auth = `Basic ${Buffer.from(decoded).toString('base64')}`
+  }
+
+  return { host, port, auth }
+}
+
+/**
+ * 按目标协议读取代理配置。
+ *
+ * - `https:` 读 `HTTPS_PROXY` / `https_proxy` / `ALL_PROXY` / `all_proxy`；
+ * - `http:` 读 `HTTP_PROXY` / `http_proxy` / `ALL_PROXY` / `all_proxy`；
+ * - 首个非空值决定结果，解析失败即按直连（返回 null），不静默改用低优先级候选，
+ *   避免「配错了却悄悄换了出口」这种难排查的情况。
+ *
+ * @param {string} protocol 目标协议（`http:` 或 `https:`）
+ * @returns {{host: string, port: number, auth: string|null}|null}
+ */
+function resolveProxy(protocol) {
+  const keys = PROXY_ENV_KEYS[protocol === 'http:' ? 'http:' : 'https:']
+  if (!keys) return null
+  for (const key of keys) {
+    const raw = process.env[key]
+    if (typeof raw !== 'string') continue
+    const trimmed = raw.trim()
+    if (!trimmed) continue
+    return parseProxyUrl(trimmed)
+  }
+  return null
+}
+
+/**
+ * 地址排序：IPv4 优先，保持原有相对顺序并去重。
+ *
+ * 两条理由：① 部分网络/代理没有 IPv6 出口，AAAA 排在前面会白等；② 建连失败时可
+ * 依次回退到下一个地址（见 `requestOnce`）。
+ *
+ * @param {Array<{address: string, family: number}>} addresses
+ * @returns {Array<{address: string, family: number}>}
+ */
+function orderAddresses(addresses) {
+  const list = Array.isArray(addresses) ? addresses : []
+  const seen = new Set()
+  const ordered = []
+  for (const item of list) {
+    if (!item || typeof item.address !== 'string' || !item.address) continue
+    const key = `${item.family}|${item.address}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    ordered.push({ address: item.address, family: item.family === 6 ? 6 : 4 })
+  }
+  // Array#sort 在 V8 中稳定，同族地址保持 DNS 返回顺序
+  ordered.sort((a, b) => (a.family === 4 ? 0 : 1) - (b.family === 4 ? 0 : 1))
+  return ordered
+}
+
+/** 把 IP 格式化成 authority 里的主机部分（IPv6 需方括号）。 */
+function toAuthorityHost(address, family) {
+  return family === 6 ? `[${address}]` : address
+}
+
 /* ------------------------------ 抓取实现 ------------------------------ */
 
 /** 统一错误对象。 */
@@ -348,10 +459,14 @@ async function resolveHost(hostname) {
   }
 
   try {
-    const list = await dns.promises.lookup(bare, { all: true, verbatim: true })
+    // 测试钩子：用注入的解析结果替代真实 DNS（让「域名 + 本地桩」路径可验证）
+    const list =
+      typeof lookupForTest === 'function'
+        ? await lookupForTest(bare)
+        : await dns.promises.lookup(bare, { all: true, verbatim: true })
     if (!Array.isArray(list) || list.length === 0) return { failed: true }
     for (const item of list) {
-      if (!allowPrivateForTest && isPrivateAddress(item.address)) return { blocked: true }
+      if (!allowPrivateForTest && isPrivateAddress(item && item.address)) return { blocked: true }
     }
     return { addresses: list.map((i) => ({ address: i.address, family: i.family })) }
   } catch {
@@ -359,120 +474,314 @@ async function resolveHost(hostname) {
   }
 }
 
+/** 请求头（直连与代理共用；Host 由各路径显式给出）。 */
+function requestHeadersFor(url) {
+  return {
+    Host: url.host,
+    'User-Agent': USER_AGENT,
+    Accept: 'text/html,application/xhtml+xml',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  }
+}
+
 /**
- * 单跳请求：按已校验 IP 建连（lookup 钩子钉住），Host 头保留域名。
- * @returns {Promise<{html: string, finalUrl: string} | {redirect: string} | {error: object}>}
+ * 单跳请求：按已校验 IP 建连（直连钉 IP；HTTPS 代理用 CONNECT 到已校验 IP 后自行 TLS）。
+ *
+ * 三条路径：
+ *   1. 直连：`lookup` 钩子钉住已校验 IP，Host 头保留域名，HTTPS 带 servername；
+ *   2. HTTPS 走代理：CONNECT 目标用**已校验 IP**（IPv6 加方括号）→ TLS（servername=域名）
+ *      → 在该 TLS socket 上发明文 HTTP/1.1。DNS 钉扎得以保留（代理解析不到域名）；
+ *   3. HTTP 走代理：absolute-form 请求行交给代理转发。HTTP 无法端到端钉 IP，
+ *      此处仅保留前置的 DNS 校验（残余风险：代理侧可能把域名解析到内网地址）。
+ *
+ * 结果统一附带 `viaProxy`，便于线上确认实际走的哪条路径。
+ *
+ * @returns {Promise<{html: string, finalUrl: string, viaProxy: boolean}
+ *   | {redirect: string, viaProxy: boolean}
+ *   | {error: object}>}
  */
 function requestOnce(url, addresses, deadline) {
-  return new Promise((resolve) => {
-    const isHttps = url.protocol === 'https:'
-    const mod = isHttps ? https : http
-    const pinned = addresses[0]
-    const hostname = stripBrackets(url.hostname)
-    const timeoutMs = Math.max(1, deadline - Date.now())
+  const proxy = resolveProxy(url.protocol)
 
+  // HTTP 目标走代理时由代理侧解析域名，本地没有可切换的地址
+  if (proxy && url.protocol !== 'https:') {
+    return attemptOnce(url, null, proxy, deadline).then((outcome) => outcome.value)
+  }
+
+  const candidates = orderAddresses(addresses)
+  if (candidates.length === 0) {
+    const empty = errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点')
+    empty.viaProxy = Boolean(proxy)
+    return Promise.resolve(empty)
+  }
+
+  const run = (index) =>
+    attemptOnce(url, candidates[index], proxy, deadline).then((outcome) => {
+      // 只有在「一个响应都没收到」、还有下一个地址、且还留有预算时才切换地址
+      if (outcome.retryable && index + 1 < candidates.length && deadline - Date.now() > 200) {
+        return run(index + 1)
+      }
+      return outcome.value
+    })
+
+  return run(0)
+}
+
+/**
+ * 用单个已校验地址发起一次尝试。
+ *
+ * @param {URL} url
+ * @param {{address: string, family: number}|null} pinned 已校验地址（HTTP 走代理时为 null）
+ * @param {{host: string, port: number, auth: string|null}|null} proxy
+ * @param {number} deadline
+ * @returns {Promise<{retryable: boolean, value: object}>} `retryable` 表示尚未收到任何响应，
+ *   上层可安全换下一个地址重试（不会导致对上游的重复请求）。
+ */
+function attemptOnce(url, pinned, proxy, deadline) {
+  const isHttps = url.protocol === 'https:'
+  const viaProxy = Boolean(proxy)
+  const timeoutMs = Math.max(1, deadline - Date.now())
+  const hostname = stripBrackets(url.hostname)
+  const port = url.port ? Number(url.port) : isHttps ? 443 : 80
+  const path = `${url.pathname || '/'}${url.search || ''}`
+  const headers = requestHeadersFor(url)
+  let responseSeen = false
+
+  return new Promise((resolve) => {
     let settled = false
+    let timer = null
+    /** 需要随请求结束一起销毁的对象（socket / request / agent）。 */
+    const resources = []
+
+    const cleanup = () => {
+      for (const item of resources) {
+        try {
+          item.destroy()
+        } catch {
+          /* 已关闭：忽略 */
+        }
+      }
+      resources.length = 0
+    }
+
     const finish = (value) => {
       if (settled) return
       settled = true
-      resolve(value)
+      if (timer) clearTimeout(timer)
+      if (value && value.error) value.error.viaProxy = viaProxy
+      else if (value) value.viaProxy = viaProxy
+      // 不复用连接：收尾时统一断开，避免 socket 泄漏
+      cleanup()
+      resolve({ retryable: !responseSeen && Boolean(value && value.error), value })
     }
 
-    const options = {
-      protocol: url.protocol,
-      hostname,
-      port: url.port ? Number(url.port) : isHttps ? 443 : 80,
-      path: `${url.pathname || '/'}${url.search || ''}`,
-      method: 'GET',
-      headers: {
-        Host: url.host,
-        'User-Agent': USER_AGENT,
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-      },
-      // 防 DNS rebinding：实际连接强制使用已校验 IP（Host 头仍为域名）
-      lookup: (_host, _opts, cb) => cb(null, pinned.address, pinned.family),
-      timeout: timeoutMs,
-    }
-    if (isHttps && net.isIP(hostname) === 0) options.servername = hostname
+    const abort = (error) => finish({ error })
 
-    let req
-    try {
-      req = mod.request(options, (res) => {
-        const status = res.statusCode || 0
-        const headers = res.headers || {}
+    const onResponse = (res) => {
+      responseSeen = true
+      const status = res.statusCode || 0
+      const responseHeaders = res.headers || {}
 
-        if (status >= 300 && status < 400 && headers.location) {
-          res.resume()
-          finish({ redirect: String(headers.location) })
+      if (status >= 300 && status < 400 && responseHeaders.location) {
+        res.resume()
+        finish({ redirect: String(responseHeaders.location) })
+        return
+      }
+      if (status === 404 || status === 410) {
+        res.resume()
+        abort(errorResult(404, 'UPSTREAM_NOT_FOUND', '目标页面不存在'))
+        return
+      }
+      if (status < 200 || status >= 300) {
+        res.resume()
+        abort(errorResult(502, 'UPSTREAM_ERROR', '目标站点返回异常状态'))
+        return
+      }
+
+      const contentType = String(responseHeaders['content-type'] || '')
+        .split(';')[0]
+        .trim()
+        .toLowerCase()
+      if (contentType !== 'text/html' && contentType !== 'application/xhtml+xml') {
+        res.resume()
+        abort(errorResult(415, 'UNSUPPORTED_CONTENT_TYPE', '目标不是网页（仅支持 HTML）'))
+        return
+      }
+
+      const chunks = []
+      let total = 0
+      res.on('data', (chunk) => {
+        total += chunk.length
+        if (total > MAX_BYTES) {
+          res.destroy()
+          abort(errorResult(413, 'RESPONSE_TOO_LARGE', '目标网页过大（超过 512KB）'))
           return
         }
-        if (status === 404 || status === 410) {
-          res.resume()
-          finish({ error: errorResult(404, 'UPSTREAM_NOT_FOUND', '目标页面不存在') })
-          return
-        }
-        if (status < 200 || status >= 300) {
-          res.resume()
-          finish({ error: errorResult(502, 'UPSTREAM_ERROR', '目标站点返回异常状态') })
-          return
-        }
-
-        const contentType = String(headers['content-type'] || '')
-          .split(';')[0]
-          .trim()
-          .toLowerCase()
-        if (contentType !== 'text/html' && contentType !== 'application/xhtml+xml') {
-          res.resume()
-          finish({ error: errorResult(415, 'UNSUPPORTED_CONTENT_TYPE', '目标不是网页（仅支持 HTML）') })
-          return
-        }
-
-        const chunks = []
-        let total = 0
-        res.on('data', (chunk) => {
-          total += chunk.length
-          if (total > MAX_BYTES) {
-            res.destroy()
-            finish({ error: errorResult(413, 'RESPONSE_TOO_LARGE', '目标网页过大（超过 512KB）') })
-            return
-          }
-          chunks.push(chunk)
-        })
-        res.on('end', () => {
-          finish({ html: Buffer.concat(chunks).toString('utf8'), finalUrl: url.toString() })
-        })
-        res.on('error', () => {
-          finish({ error: errorResult(502, 'UPSTREAM_ERROR', '读取目标网页失败') })
-        })
+        chunks.push(chunk)
       })
-    } catch {
-      finish({ error: errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点') })
+      res.on('end', () => {
+        finish({ html: Buffer.concat(chunks).toString('utf8'), finalUrl: url.toString() })
+      })
+      res.on('error', () => {
+        abort(errorResult(502, 'UPSTREAM_ERROR', '读取目标网页失败'))
+      })
+    }
+
+    timer = setTimeout(() => abort(errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试')), timeoutMs)
+    if (typeof timer.unref === 'function') timer.unref()
+
+    /* ------------------------------ 路径 1：直连 ------------------------------ */
+    if (!proxy) {
+      if (!pinned) {
+        abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
+        return
+      }
+
+      const pinnedList = [{ address: pinned.address, family: pinned.family }]
+      const options = {
+        protocol: url.protocol,
+        hostname,
+        port,
+        path,
+        method: 'GET',
+        headers,
+        // 防 DNS rebinding：实际连接强制使用已校验 IP（Host 头仍为域名）。
+        // 注意：Node ≥20 会以 `{ all: true }` 调用本钩子，此时必须回**数组**，
+        // 否则内部拿到的 ip 为 undefined → ERR_INVALID_IP_ADDRESS（域目标全线 502）。
+        lookup: (_host, opts, cb) => {
+          if (opts && opts.all) cb(null, pinnedList)
+          else cb(null, pinned.address, pinned.family)
+        },
+        timeout: timeoutMs,
+      }
+      if (isHttps && net.isIP(hostname) === 0) options.servername = hostname
+
+      let req
+      try {
+        req = (isHttps ? https : http).request(options, onResponse)
+      } catch {
+        abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
+        return
+      }
+      resources.push(req)
+      req.on('timeout', () => abort(errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试')))
+      req.on('error', () => abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点')))
+      req.end()
       return
     }
 
-    const guard = setTimeout(() => {
-      try {
-        req.destroy()
-      } catch {
-        /* 忽略 */
-      }
-      finish({ error: errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试') })
-    }, timeoutMs)
-    if (typeof guard.unref === 'function') guard.unref()
+    /* --------------------- 路径 3：HTTP 目标走代理（absolute-form） --------------------- */
+    if (!isHttps) {
+      const proxyHeaders = requestHeadersFor(url)
+      if (proxy.auth) proxyHeaders['Proxy-Authorization'] = proxy.auth
 
-    req.on('timeout', () => {
+      let req
       try {
-        req.destroy()
+        req = http.request(
+          {
+            host: proxy.host,
+            port: proxy.port,
+            method: 'GET',
+            // absolute-form：由代理解析域名并回源
+            path: url.href,
+            headers: proxyHeaders,
+            // 一次性请求，不复用代理连接（避免跨目标串用 keep-alive socket）
+            agent: false,
+            setHost: false,
+            timeout: timeoutMs,
+          },
+          onResponse,
+        )
       } catch {
-        /* 忽略 */
+        abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接代理服务器'))
+        return
       }
-      finish({ error: errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试') })
+      resources.push(req)
+      req.on('timeout', () => abort(errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试')))
+      req.on('error', () => abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接代理服务器')))
+      req.end()
+      return
+    }
+
+    /* -------------------- 路径 2：HTTPS 目标走代理（CONNECT 钉 IP） -------------------- */
+    if (!pinned) {
+      abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
+      return
+    }
+    const authority = `${toAuthorityHost(pinned.address, pinned.family)}:${port}`
+
+    const connectHeaders = { Host: authority }
+    if (proxy.auth) connectHeaders['Proxy-Authorization'] = proxy.auth
+
+    let connectReq
+    try {
+      connectReq = http.request({
+        host: proxy.host,
+        port: proxy.port,
+        method: 'CONNECT',
+        path: authority,
+        headers: connectHeaders,
+        setHost: false,
+        timeout: timeoutMs,
+      })
+    } catch {
+      abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接代理服务器'))
+      return
+    }
+    resources.push(connectReq)
+
+    connectReq.on('connect', (connectRes, socket, head) => {
+      resources.push(socket)
+      if (connectRes.statusCode !== 200) {
+        abort(errorResult(502, 'UPSTREAM_ERROR', '代理连接被拒绝'))
+        return
+      }
+      // CONNECT 成功后紧随的数据属于 TLS 流，必须回填后再握手
+      if (head && head.length) {
+        try {
+          socket.unshift(head)
+        } catch {
+          /* 忽略：极少出现，握手会自然失败 */
+        }
+      }
+
+      const serverName = net.isIP(hostname) === 0 ? hostname : undefined
+      let tlsSocket
+      try {
+        tlsSocket = tls.connect({ socket, servername: serverName })
+      } catch {
+        abort(errorResult(502, 'UPSTREAM_ERROR', '代理加密通道建立失败'))
+        return
+      }
+      resources.push(tlsSocket)
+      tlsSocket.on('error', () => abort(errorResult(502, 'UPSTREAM_ERROR', '代理加密通道建立失败')))
+
+      tlsSocket.once('secureConnect', () => {
+        if (settled) return
+        // 在已建立的 TLS 通道上发明文 HTTP/1.1：用 Agent 注入 socket，避免二次 TLS
+        const agent = new http.Agent({ keepAlive: false, maxSockets: 1 })
+        agent.createConnection = () => tlsSocket
+        resources.push(agent)
+
+        let req
+        try {
+          req = http.request(
+            { host: hostname, port, path, method: 'GET', headers, agent },
+            onResponse,
+          )
+        } catch {
+          abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
+          return
+        }
+        resources.push(req)
+        req.on('error', () => abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点')))
+        req.end()
+      })
     })
-    req.on('error', () => {
-      finish({ error: errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点') })
-    })
-    req.end()
+
+    connectReq.on('timeout', () => abort(errorResult(504, 'TIMEOUT', '抓取超时，请稍后重试')))
+    connectReq.on('error', () => abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接代理服务器')))
+    connectReq.end()
   })
 }
 
@@ -517,6 +826,8 @@ async function resolveMeta(rawUrl) {
         finalUrl: response.finalUrl,
         fetchedAt: new Date().toISOString(),
         status: 'ok',
+        // 诊断用：是否经代理出网（不含代理地址/凭据）
+        viaProxy: response.viaProxy === true,
       },
     }
   }
@@ -542,8 +853,19 @@ function sendJson(res, status, body) {
   }
 }
 
-function fail(res, status, code, message) {
-  sendJson(res, status, { ok: false, code, message })
+/**
+ * 回写失败响应。
+ *
+ * @param {object} res
+ * @param {number} status
+ * @param {string} code
+ * @param {string} message
+ * @param {boolean} [viaProxy] 已知出网方式时带上，便于线上排障（不含代理地址/凭据）
+ */
+function fail(res, status, code, message, viaProxy) {
+  const body = { ok: false, code, message }
+  if (typeof viaProxy === 'boolean') body.viaProxy = viaProxy
+  sendJson(res, status, body)
 }
 
 function readQueryParam(rawUrl, name) {
@@ -682,7 +1004,7 @@ async function handleLinkPreview(req, res) {
 
     const result = await resolveMeta(rawUrl)
     if (!result.ok) {
-      fail(res, result.status, result.code, result.message)
+      fail(res, result.status, result.code, result.message, result.viaProxy)
       return
     }
 
@@ -700,6 +1022,7 @@ function __resetForTest() {
   cache.clear()
   limiter.reset()
   allowPrivateForTest = false
+  lookupForTest = null
 }
 
 /**
@@ -710,6 +1033,16 @@ function __setAllowPrivateForTest(value) {
   allowPrivateForTest = Boolean(value)
 }
 
+/**
+ * 仅测试用：注入 DNS 解析结果，让「域名目标 + 本地桩」路径可验证。
+ *
+ * @param {((hostname: string) => Promise<Array<{address: string, family: number}>>)|null} fn
+ *   传 `null` 复位为真实 DNS。
+ */
+function __setLookupForTest(fn) {
+  lookupForTest = typeof fn === 'function' ? fn : null
+}
+
 module.exports = {
   handleLinkPreview,
   isPrivateAddress,
@@ -717,8 +1050,11 @@ module.exports = {
   parseOg,
   resolveImageUrl,
   createRateLimiter,
+  resolveProxy,
+  parseProxyUrl,
   __resetForTest,
   __setAllowPrivateForTest,
+  __setLookupForTest,
   MAX_BYTES,
   MAX_BODY_BYTES,
   MAX_URL_LENGTH,

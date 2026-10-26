@@ -12,6 +12,25 @@ import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import lp from '../server/link-preview.js'
 
+/**
+ * 测试期间清空代理环境变量：本文件的所有目标都是 `127.0.0.1` 桩服务，
+ * 若本机配了 `HTTPS_PROXY` 等，被测代码会真的把请求发给代理，导致桩请求被转发出去。
+ * （代理路径本身由 `qa/link-preview.test.ts` 用本地假代理覆盖。）
+ */
+const PROXY_ENV_KEYS = ['HTTP_PROXY', 'http_proxy', 'HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy']
+const savedProxyEnv = new Map<string, string | undefined>(PROXY_ENV_KEYS.map((key) => [key, process.env[key]]))
+for (const key of PROXY_ENV_KEYS) delete process.env[key]
+
+function restoreProxyEnv(): void {
+  for (const key of PROXY_ENV_KEYS) {
+    const value = savedProxyEnv.get(key)
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+}
+
+process.on('exit', restoreProxyEnv)
+
 interface PreviewResponse {
   status: number
   contentType: string
@@ -232,7 +251,8 @@ test('HTTP 404：上游 404', async () => {
   assert.equal(r.body.code, 'UPSTREAM_NOT_FOUND')
 })
 
-test('HTTP 502：上游 500', async () => {  const fixture = await listen((_req, res) => {
+test('HTTP 502：上游 500', async () => {
+  const fixture = await listen((_req, res) => {
     res.writeHead(500, { 'Content-Type': 'text/html' })
     res.end('<html>err</html>')
   })

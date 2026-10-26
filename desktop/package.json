@@ -1,6 +1,6 @@
 {
   "name": "personal-agent-desktop",
-  "version": "2.12.0",
+  "version": "2.12.1",
   "private": true,
   "description": "个人信息管家桌面伴侣（Electron）",
   "main": "out/main/index.js",
