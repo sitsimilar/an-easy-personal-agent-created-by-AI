@@ -594,3 +594,42 @@ test('上游 403 不冒充我们的 403：仍是 502 + upstreamStatus 403（同�
   assert.equal(r.body.upstreamStatus, 403, '真实上游状态码 403 必须可读')
   assert.match(String(r.body.message ?? ''), /403/, 'message 也要人能看懂（含状态码）')
 })
+
+test('viaProxy 缺省语义：没走到出网环节的错误不带该字段（解析失败 / 重定向过多）', async () => {
+  // 工程师实测后把规则钉成四行：viaProxy **缺省 = 本次根本没走到出网环节**，不是「未知」。
+  // 本例补的正是两个最隐蔽的「不带」样本——它们的 status 同为 502，
+  // 若按「502 必有 viaProxy」写排障脚本就会在这两处取到 undefined。
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  // 1) 解析失败：DNS 抛错 → 一个连接都没发起 → 不带 viaProxy
+  lp.__setLookupForTest(async () => {
+    throw new Error('ENOTFOUND')
+  })
+  const dnsFail = await callPreview(service, 'http://nxdomain.test/')
+  assert.equal(dnsFail.status, 502)
+  assert.equal(dnsFail.body.code, 'UPSTREAM_ERROR')
+  assert.match(String(dnsFail.body.message ?? ''), /无法解析/, 'message 应说明是解析失败')
+  assert.equal('viaProxy' in dnsFail.body, false, '未出网的错误不得带 viaProxy（不能假装 true/false）')
+
+  // 2) 重定向超过 3 跳：错误在重定向循环里造出，不在 attemptOnce 内 → 同样不带 viaProxy
+  const chain = await listen((req, res) => {
+    const hop = Number(String(req.url ?? '').replace(/\D/g, '') || '0')
+    res.writeHead(302, { Location: `/r${hop + 1}` })
+    res.end()
+  })
+  const tooMany = await callPreview(service, `${chain.base}/r0`)
+  assert.equal(tooMany.status, 502)
+  assert.equal(tooMany.body.code, 'UPSTREAM_ERROR')
+  assert.match(String(tooMany.body.message ?? ''), /重定向/, 'message 应说明是重定向问题')
+  assert.equal('viaProxy' in tooMany.body, false, '重定向溢出的错误不得带 viaProxy')
+
+  // 3) 对照：同一次调用里，上游 404 属于「已发起连接」→ 顶层**必须**带 viaProxy
+  const notFound = await listen((_req, res) => {
+    res.writeHead(404, { 'Content-Type': 'text/html' })
+    res.end('<html>gone</html>')
+  })
+  const gone = await callPreview(service, `${notFound.base}/x`)
+  assert.equal(gone.status, 404)
+  assert.equal(typeof gone.body.viaProxy, 'boolean', '已发起连接的 404 应带顶层 viaProxy')
+})

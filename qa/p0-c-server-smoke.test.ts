@@ -186,8 +186,12 @@ test('公开站点成功路径（POST https://example.com）', async (t) => {
       body: JSON.stringify({ url: 'https://example.com/' }),
       signal: AbortSignal.timeout(15_000),
     })
-  } catch {
-    t.skip('当前环境网络受限，公开站点抓取未验证')
+  } catch (error) {
+    // 只有「外部网络不可用」才允许 skip（超时/中断）。其余异常——例如我们自己的服务没起来、
+    // 连接被拒、响应无法解析——必须让用例失败：否则真缺陷会被伪装成「未验证」而漏过去。
+    const name = (error as { name?: string } | undefined)?.name ?? ''
+    if (name !== 'TimeoutError' && name !== 'AbortError') throw error
+    t.skip(`当前环境网络受限（${name}），公开站点抓取未验证`)
     return
   }
 
