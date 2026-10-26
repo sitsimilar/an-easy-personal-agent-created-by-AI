@@ -411,6 +411,10 @@ test('resolveProxy：按目标协议选变量，HTTPS_PROXY 不串用到 http �
 
   process.env.HTTP_PROXY = 'http://127.0.0.1:2222'
   assert.deepEqual(resolveProxy('http:'), { host: '127.0.0.1', port: 2222, auth: null })
+
+  // https 目标在 HTTPS_PROXY 缺失时也会读 HTTP_PROXY（很多环境只配这一个）
+  delete process.env.HTTPS_PROXY
+  assert.equal((resolveProxy('https:') as { port: number }).port, 2222, 'https 目标应回落到 HTTP_PROXY')
 })
 
 test('resolveProxy：小写变量可用，空值降级到下一个候选', () => {

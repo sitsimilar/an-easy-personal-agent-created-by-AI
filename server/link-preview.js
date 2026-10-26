@@ -52,9 +52,11 @@ const PROXY_PORT_MAX = 65535
 /**
  * 各目标协议可用的代理环境变量（按优先级，大小写都认）。
  * 部署沙箱出网必须经代理，而 Node 原生 http/https 不读这些变量，故此处自行实现。
+ *
+ * https 目标也接受 `HTTP_PROXY`（很多环境只配这一个，约定俗成公认可用）。
  */
 const PROXY_ENV_KEYS = {
-  'https:': ['HTTPS_PROXY', 'https_proxy', 'ALL_PROXY', 'all_proxy'],
+  'https:': ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'],
   'http:': ['HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'],
 }
 
@@ -400,16 +402,24 @@ function orderAddresses(addresses) {
   return ordered
 }
 
-/** 把 IP 格式化成 authority 里的主机部分（IPv6 需方括号）。 */
-function toAuthorityHost(address, family) {
-  return family === 6 ? `[${address}]` : address
-}
-
 /* ------------------------------ 抓取实现 ------------------------------ */
 
-/** 统一错误对象。 */
-function errorResult(status, code, message) {
-  return { ok: false, status, code, message }
+/**
+ * 统一错误对象。
+ *
+ * @param {number} status HTTP 状态码
+ * @param {string} code 机器可读错误码
+ * @param {string} message 面向用户的中文原因
+ * @param {Record<string, unknown>} [extra] 附加诊断字段（如 `upstreamStatus` / `viaProxy`）
+ */
+function errorResult(status, code, message, extra) {
+  const result = { ok: false, status, code, message }
+  if (extra) {
+    for (const key of Object.keys(extra)) {
+      if (extra[key] !== undefined) result[key] = extra[key]
+    }
+  }
+  return result
 }
 
 /** 校验并准备目标 URL（协议/端口/userinfo/主机名黑名单）。 */
@@ -503,20 +513,25 @@ function requestHeadersFor(url) {
 function requestOnce(url, addresses, deadline) {
   const proxy = resolveProxy(url.protocol)
 
-  // HTTP 目标走代理时由代理侧解析域名，本地没有可切换的地址
-  if (proxy && url.protocol !== 'https:') {
-    return attemptOnce(url, null, proxy, deadline).then((outcome) => outcome.value)
+  if (proxy) {
+    if (url.protocol !== 'https:') {
+      // HTTP 目标：absolute-form 交给代理，由代理侧解析域名，本地没有可切换的地址
+      return attemptOnce(url, null, proxy, deadline).then((outcome) => outcome.value)
+    }
+    // HTTPS 目标：CONNECT 只用 IPv4 钉扎（实测代理对 [IPv6]:443 会超时）；
+    // 没有 IPv4 候选时 pinned 为 null，由 attemptOnce 退化为 CONNECT 域名（钉扎降级）。
+    const candidates = orderAddresses(addresses)
+    const pinnedV4 = candidates.find((item) => item.family === 4) || null
+    return attemptOnce(url, pinnedV4, proxy, deadline).then((outcome) => outcome.value)
   }
 
   const candidates = orderAddresses(addresses)
   if (candidates.length === 0) {
-    const empty = errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点')
-    empty.viaProxy = Boolean(proxy)
-    return Promise.resolve(empty)
+    return Promise.resolve(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
   }
 
   const run = (index) =>
-    attemptOnce(url, candidates[index], proxy, deadline).then((outcome) => {
+    attemptOnce(url, candidates[index], null, deadline).then((outcome) => {
       // 只有在「一个响应都没收到」、还有下一个地址、且还留有预算时才切换地址
       if (outcome.retryable && index + 1 < candidates.length && deadline - Date.now() > 200) {
         return run(index + 1)
@@ -594,7 +609,13 @@ function attemptOnce(url, pinned, proxy, deadline) {
       }
       if (status < 200 || status >= 300) {
         res.resume()
-        abort(errorResult(502, 'UPSTREAM_ERROR', '目标站点返回异常状态'))
+        // 上游非 2xx 一律映射 502（不冒充我们自己的 403/415）：语义主体是「网关从上游
+        // 拿到了失败响应」。但把真实状态码带出来，否则线上无法区分 415/500/403。
+        abort(
+          errorResult(502, 'UPSTREAM_ERROR', `目标站点返回异常状态（HTTP ${status}）`, {
+            upstreamStatus: status,
+          }),
+        )
         return
       }
 
@@ -704,11 +725,13 @@ function attemptOnce(url, pinned, proxy, deadline) {
     }
 
     /* -------------------- 路径 2：HTTPS 目标走代理（CONNECT 钉 IP） -------------------- */
-    if (!pinned) {
-      abort(errorResult(502, 'UPSTREAM_ERROR', '无法连接目标站点'))
-      return
-    }
-    const authority = `${toAuthorityHost(pinned.address, pinned.family)}:${port}`
+    // CONNECT 目标优先用**已校验的 IPv4 字面量**（保住 DNS 钉扎）。
+    // 实测多数代理对 `[IPv6]:443` 直接超时，所以 IPv6 不用作隧道目标；
+    // 当目标只有 AAAA 记录时，退化为 CONNECT 域名 —— 此时「代理侧解析域名」这
+    // 一环不再受我们控制，属于**钉扎降级**（前置的全地址私网校验仍然生效）。
+    const ipLiteralV6 = net.isIP(hostname) === 6 ? `[${hostname}]` : hostname
+    const tunnelHost = pinned && pinned.family === 4 ? pinned.address : ipLiteralV6
+    const authority = `${tunnelHost}:${port}`
 
     const connectHeaders = { Host: authority }
     if (proxy.auth) connectHeaders['Proxy-Authorization'] = proxy.auth
@@ -860,11 +883,15 @@ function sendJson(res, status, body) {
  * @param {number} status
  * @param {string} code
  * @param {string} message
- * @param {boolean} [viaProxy] 已知出网方式时带上，便于线上排障（不含代理地址/凭据）
+ * @param {{viaProxy?: boolean, upstreamStatus?: number}} [extra]
+ *   已知出网方式 / 上游状态码时带上，便于线上排障（不含代理地址/凭据）
  */
-function fail(res, status, code, message, viaProxy) {
+function fail(res, status, code, message, extra) {
   const body = { ok: false, code, message }
-  if (typeof viaProxy === 'boolean') body.viaProxy = viaProxy
+  if (extra && typeof extra === 'object') {
+    if (typeof extra.viaProxy === 'boolean') body.viaProxy = extra.viaProxy
+    if (Number.isInteger(extra.upstreamStatus)) body.upstreamStatus = extra.upstreamStatus
+  }
   sendJson(res, status, body)
 }
 
@@ -1004,7 +1031,10 @@ async function handleLinkPreview(req, res) {
 
     const result = await resolveMeta(rawUrl)
     if (!result.ok) {
-      fail(res, result.status, result.code, result.message, result.viaProxy)
+      fail(res, result.status, result.code, result.message, {
+        viaProxy: result.viaProxy,
+        upstreamStatus: result.upstreamStatus,
+      })
       return
     }
 

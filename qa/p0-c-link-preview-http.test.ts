@@ -34,7 +34,14 @@ process.on('exit', restoreProxyEnv)
 interface PreviewResponse {
   status: number
   contentType: string
-  body: { ok: boolean; code?: string; message?: string; data?: Record<string, unknown> }
+  body: {
+    ok: boolean
+    code?: string
+    message?: string
+    data?: Record<string, unknown>
+    /** 失败响应顶层可能带 viaProxy（抓取阶段错误才有），成功时在 data.viaProxy。 */
+    viaProxy?: unknown
+  }
   raw: string
 }
 
@@ -466,4 +473,98 @@ test('HTTP 429：同一客户端 IP 超过 30 次/分钟', async () => {
   // 不同 IP 不受影响
   const other = await callPreview(service, target, { headers: { 'x-forwarded-for': '203.0.113.9' } })
   assert.equal(other.status, 200)
+})
+
+/* ------------------- 空元数据语义（title 为空 ≠ 抓取失败） ------------------- */
+
+test('空元数据：无 title / 无 OG 的 JS 跳转壳 → 200 + ok:true + title 为空串（不是抓取失败）', async () => {
+  // 线上真实样本：https://www.baidu.com 返回约 227 字节的跳转壳，既无 <title> 也无 OG。
+  // 这类页面属于「解析成功但确实没有标题」，必须与「抓取失败」区分
+  // （历史上 P3-2 就是把两者混为一谈，导致老记录被误标成「未能抓取网页信息」）。
+  const shell =
+    '<html><head><script>location.replace("https://www.baidu.com/")</script></head><body></body></html>'
+  const fixture = await startHtmlFixture(shell)
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  const r = await callPreview(service, `${fixture.base}/shell`)
+
+  assert.equal(r.status, 200, '能取到 HTML 就是成功，不能因为缺 title 报错')
+  assert.equal(r.body.ok, true)
+  assert.equal(r.body.code, undefined, '成功响应不得携带任何错误码')
+  assert.equal(r.body.data?.title, '', 'title 应为空字符串（约定值），而不是 undefined/null')
+  assert.equal(r.body.data?.description, '')
+  assert.equal(r.body.data?.image, null, '无 og:image 时约定为 null')
+  assert.equal(r.body.data?.status, 'ok', '记录状态仍是 ok（前端据此判断「已抓取」）')
+  assert.equal(r.body.data?.site, '127.0.0.1', '站点名仍应回填（不依赖 title）')
+})
+
+test('上游 415（站点拒绝 Accept: text/html）→ 仍映射 502 UPSTREAM_ERROR，不冒充我们的 415', async () => {
+  // 决策记录（2026-10 QA 与工程师共识，本用例用于锁死该边界）：
+  //   我们的 415 UNSUPPORTED_CONTENT_TYPE = 「取到了 2xx，但内容不是网页」（对响应的判定）；
+  //   上游 415 = 「站点拒绝了我们的请求」（对请求的拒绝）。
+  // 两者原因不同，共用一个错误码会让线上无法区分，还会与 403 BLOCKED_HOST（我们自己拦的）
+  // 形成同码不同因的歧义；因此上游任意非 2xx（404/410 语义明确，单独处理）统一记 502。
+  const fixture = await listen((_req, res) => {
+    // 模拟 api.github.com：对 Accept: text/html 直接回 415
+    res.writeHead(415, { 'Content-Type': 'application/json' })
+    res.end('{"message":"Unsupported Media Type"}')
+  })
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  const r = await callPreview(service, `${fixture.base}/api`)
+
+  assert.equal(r.status, 502, '上游 415 属于「上游返回异常状态」→ 502')
+  assert.equal(r.body.code, 'UPSTREAM_ERROR')
+  assert.notEqual(r.body.code, 'UNSUPPORTED_CONTENT_TYPE', '不得与「内容不是网页」的 415 混用')
+  assert.match(String(r.body.message ?? ''), /异常状态/, 'message 应说明是上游状态异常')
+})
+
+/* ------------------------ viaProxy 可观测性契约 ------------------------ */
+
+test('viaProxy 契约：抓取阶段错误带顶层字段、校验期错误不带、成功时在 data 里', async () => {
+  // 线上排障靠它判断「到底走没走代理」，所以位置必须稳定：
+  //   成功     → data.viaProxy（boolean）
+  //   抓取阶段错误（502/504/413/415 等，已决定出网方式）→ 响应体**顶层** viaProxy
+  //   校验期错误（400 参数/协议/端口、403 黑名单/私网）→ **不带**（此时还没决定走不走代理）
+  // 这是工程师刻意的设计，本用例用于防止语义漂移（断言只查「有没有、是不是 boolean」，不查真假值）。
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  // 1) 成功：data.viaProxy
+  const okFixture = await startHtmlFixture('<html><head><title>契约页</title></head></html>')
+  const ok = await callPreview(service, `${okFixture.base}/p`)
+  assert.equal(ok.status, 200)
+  assert.equal(typeof ok.body.data?.viaProxy, 'boolean', '成功时 viaProxy 在 data 里')
+
+  // 2) 抓取阶段错误 502（上游 500）：顶层 viaProxy
+  const boom = await listen((_req, res) => {
+    res.writeHead(500, { 'Content-Type': 'text/html' })
+    res.end('<html>err</html>')
+  })
+  const e502 = await callPreview(service, `${boom.base}/x`)
+  assert.equal(e502.status, 502)
+  assert.equal(typeof e502.body.viaProxy, 'boolean', '抓取阶段 502 应带顶层 viaProxy')
+
+  // 3) 抓取阶段错误 415（上游非 HTML）：顶层 viaProxy
+  const pdf = await listen((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/pdf' })
+    res.end('%PDF-1.4')
+  })
+  const e415 = await callPreview(service, `${pdf.base}/d.pdf`)
+  assert.equal(e415.status, 415)
+  assert.equal(typeof e415.body.viaProxy, 'boolean', '抓取阶段 415 也应带顶层 viaProxy')
+
+  // 4) 校验期错误 400（缺 url）：不带 viaProxy
+  const bad = await callPreview(service, null)
+  assert.equal(bad.status, 400)
+  assert.equal('viaProxy' in bad.body, false, '校验期 400 不应带 viaProxy')
+
+  // 5) 校验期错误 403（私网）：不带 viaProxy（保持生产档位）
+  lp.__setAllowPrivateForTest(false)
+  const blocked = await callPreview(service, 'http://127.0.0.1/')
+  assert.equal(blocked.status, 403)
+  assert.equal(blocked.body.code, 'BLOCKED_HOST')
+  assert.equal('viaProxy' in blocked.body, false, '校验期 403 不应带 viaProxy')
 })
