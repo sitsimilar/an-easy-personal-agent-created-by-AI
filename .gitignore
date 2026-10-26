@@ -6,6 +6,7 @@ dist/
 dist-*/
 out/
 qa/ux-shots/
+desktop/build/_prev/
 *.log
 
 # 环境变量（含云服务密钥，仅提交 *.example 模板）
