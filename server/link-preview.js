@@ -810,6 +810,18 @@ function attemptOnce(url, pinned, proxy, deadline) {
 
 /**
  * 抓取并解析（含重定向逐跳复验）。
+ *
+ * `viaProxy` 的**精确边界**（线上排障与脚本请按此口径，不要当成「所有响应都有」）：
+ *
+ * | 场景 | 位置 | 是否带 |
+ * | --- | --- | --- |
+ * | 成功 200 | `data.viaProxy` | 带（boolean） |
+ * | 校验期拒绝 400/403（协议/端口/userinfo/黑名单） | — | **不带**（此时还没决定走不走代理） |
+ * | 已经发起过连接的错误（502/504/413/415/404/410） | 响应体**顶层** | 带（boolean） |
+ * | 尚未发起任何连接的错误（「无法解析该域名」「重定向次数过多」） | — | **不带** |
+ *
+ * 也就是说：`viaProxy` 缺省表示「本次没有走到出网环节」，而不是「未知」。
+ *
  * @returns {Promise<{ok: true, data: object} | {ok: false, status: number, code: string, message: string}>}
  */
 async function resolveMeta(rawUrl) {

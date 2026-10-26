@@ -518,12 +518,14 @@ test('上游 415（站点拒绝 Accept: text/html）→ 仍映射 502 UPSTREAM_E
   assert.equal(r.status, 502, '上游 415 属于「上游返回异常状态」→ 502')
   assert.equal(r.body.code, 'UPSTREAM_ERROR')
   assert.notEqual(r.body.code, 'UNSUPPORTED_CONTENT_TYPE', '不得与「内容不是网页」的 415 混用')
+  // 机读字段：真实上游状态码必须带出来，否则线上分不清 415/500/403（本次 502 事故最缺的分辨率）
+  assert.equal(r.body.upstreamStatus, 415, 'upstreamStatus 应为真实上游状态码 415')
   assert.match(String(r.body.message ?? ''), /异常状态/, 'message 应说明是上游状态异常')
 })
 
 /* ------------------------ viaProxy 可观测性契约 ------------------------ */
 
-test('viaProxy 契约：抓取阶段错误带顶层字段、校验期错误不带、成功时在 data 里', async () => {
+test('诊断字段契约（viaProxy / upstreamStatus）：抓取阶段错误带顶层字段、校验期错误不带、成功时在 data 里', async () => {
   // 线上排障靠它判断「到底走没走代理」，所以位置必须稳定：
   //   成功     → data.viaProxy（boolean）
   //   抓取阶段错误（502/504/413/415 等，已决定出网方式）→ 响应体**顶层** viaProxy
@@ -546,6 +548,7 @@ test('viaProxy 契约：抓取阶段错误带顶层字段、校验期错误不�
   const e502 = await callPreview(service, `${boom.base}/x`)
   assert.equal(e502.status, 502)
   assert.equal(typeof e502.body.viaProxy, 'boolean', '抓取阶段 502 应带顶层 viaProxy')
+  assert.equal(e502.body.upstreamStatus, 500, '上游 500 必须原样带出 upstreamStatus')
 
   // 3) 抓取阶段错误 415（上游非 HTML）：顶层 viaProxy
   const pdf = await listen((_req, res) => {
@@ -567,4 +570,27 @@ test('viaProxy 契约：抓取阶段错误带顶层字段、校验期错误不�
   assert.equal(blocked.status, 403)
   assert.equal(blocked.body.code, 'BLOCKED_HOST')
   assert.equal('viaProxy' in blocked.body, false, '校验期 403 不应带 viaProxy')
+  // 白名单转发：校验期错误不得冒出上游字段（防止内部对象/字段泄漏）
+  assert.equal('upstreamStatus' in bad.body, false, '校验期 400 不应带 upstreamStatus')
+  assert.equal('upstreamStatus' in blocked.body, false, '校验期 403 不应带 upstreamStatus')
+})
+
+test('上游 403 不冒充我们的 403：仍是 502 + upstreamStatus 403（同码不同因必须可分）', async () => {
+  // 这是「不扩张特例表」里最容易踩的一条：我们的 403 是 BLOCKED_HOST（主动拦私网/黑名单），
+  // 上游 403 是「站点拒绝了我们」。若把上游 403 透传成 403，线上看到 403 就分不清是我们拦的
+  // 还是对方拒绝的 —— 这正是上次 502 事故里最缺的分辨率。故：状态码仍 502，真实原因走 upstreamStatus。
+  const fixture = await listen((_req, res) => {
+    res.writeHead(403, { 'Content-Type': 'text/html' })
+    res.end('<html>forbidden</html>')
+  })
+  const service = await startPreviewService()
+  lp.__setAllowPrivateForTest(true)
+
+  const r = await callPreview(service, `${fixture.base}/private`)
+
+  assert.equal(r.status, 502, '上游 403 属于「上游返回异常状态」→ 502')
+  assert.equal(r.body.code, 'UPSTREAM_ERROR')
+  assert.notEqual(r.body.code, 'BLOCKED_HOST', '绝不能与「我们主动拦截」的 403 混淆')
+  assert.equal(r.body.upstreamStatus, 403, '真实上游状态码 403 必须可读')
+  assert.match(String(r.body.message ?? ''), /403/, 'message 也要人能看懂（含状态码）')
 })
